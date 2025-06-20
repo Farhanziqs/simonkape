@@ -1,0 +1,8 @@
+Array
+(
+    [id] => 1
+    [username] => adminprodi
+    [password] => $2y$10$ePJ6955SWJGP0XZ.u9HDSuh5XVkEy2/SSv41v5Fl6gwVcTw08FKO.
+    [role] => admin
+    [user_id] => 
+)
