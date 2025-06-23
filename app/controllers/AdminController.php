@@ -402,13 +402,20 @@ class AdminController extends Controller {
 
     // --- Manajemen Penempatan KP / Kelompok Instansi ---
     public function penempatan() {
-        $data['active_menu'] = 'penempatan';
-        $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
-        $data['instansi_list'] = $this->instansiModel->getAllInstansi();
-        $data['dosen_list'] = $this->dosenModel->getAllDosen();
-        $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
-        $this->view('admin/penempatan/index', $data);
+    $data['active_menu'] = 'penempatan';
+    $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
+    $data['instansi_list'] = $this->instansiModel->getAllInstansi();
+    $data['dosen_list'] = $this->dosenModel->getAllDosen();
+    $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
+
+    // Tambahkan baris berikut:
+    foreach ($data['penempatan_kp'] as &$pkp) {
+        $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
     }
+    unset($pkp);
+
+    $this->view('admin/penempatan/index', $data);
+}
 
     public function tambahPenempatan() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -507,9 +514,15 @@ class AdminController extends Controller {
             $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
             $data['mahasiswa_saat_ini'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($id); // Mahasiswa yang sudah di kelompok ini
             $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
+                foreach ($data['penempatan_kp'] as &$pkp) {
+                    $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+                }
+                unset($pkp);
             $this->view('admin/penempatan/index', $data);
         }
     }
+
+
 
     public function hapusPenempatan($id) {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {

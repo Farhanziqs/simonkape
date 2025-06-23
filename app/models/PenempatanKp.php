@@ -46,7 +46,7 @@ class PenempatanKp {
             return false;
         }
 
-        $penempatan_kp_id = $this->db->dbh->lastInsertId(); // Ambil ID yang baru saja di-insert
+        $penempatan_kp_id = $this->db->lastInsertId(); // Ambil ID yang baru saja di-insert
 
         // 2. Insert ke tabel penempatan_kp_mahasiswa dan update status mahasiswa
         if (!empty($data['mahasiswa_ids'])) {

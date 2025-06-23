@@ -159,17 +159,16 @@
                                 <td><?php echo htmlspecialchars($pkp['tanggal_selesai'] ?? '-'); ?></td>
                                 <td>
                                     <?php
-                                    $mahasiswa_list = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
-                                    if (!empty($mahasiswa_list)) {
-                                        $nama_mahasiswa = array_column($mahasiswa_list, 'nama_lengkap');
-                                        echo implode(', ', $nama_mahasiswa);
-                                    } else {
-                                        echo '-';
-                                    }
+                                        if (!empty($pkp['mahasiswa_list'])) {
+                                            $nama_mahasiswa = array_column($pkp['mahasiswa_list'], 'nama_lengkap');
+                                            echo implode(', ', $nama_mahasiswa);
+                                        } else {
+                                            echo '-';
+                                        }
                                     ?>
                                 </td>
                                 <td>
-                                    <button class="btn btn-warning btn-sm" onclick="editPenempatan(<?php echo $pkp['id']; ?>, '<?php echo htmlspecialchars($pkp['instansi_id'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($pkp['dosen_pembimbing_id'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($pkp['nama_kelompok'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($pkp['tanggal_mulai'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($pkp['tanggal_selesai'], ENT_QUOTES); ?>', <?php echo json_encode(array_column($mahasiswa_list, 'id')); ?>)">Edit</button>
+                                    <button class="btn btn-warning btn-sm" onclick="editPenempatan(<?php echo $pkp['id']; ?>,'<?php echo htmlspecialchars($pkp['instansi_id'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['dosen_pembimbing_id'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['nama_kelompok'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['tanggal_mulai'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['tanggal_selesai'], ENT_QUOTES); ?>',<?php echo json_encode(array_column($pkp['mahasiswa_list'] ?? [], 'id')); ?>)">Edit</button>
                                     <form action="<?php echo BASE_URL; ?>/admin/hapusPenempatan/<?php echo $pkp['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus penempatan KP ini? Mahasiswa yang terkait akan diatur ulang status KP-nya.');">
                                         <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                     </form>

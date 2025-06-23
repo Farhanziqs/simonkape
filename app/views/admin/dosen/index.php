@@ -98,7 +98,7 @@
                                 <td><?php echo htmlspecialchars($dsn['nama_lengkap']); ?></td>
                                 <td><?php echo htmlspecialchars($dsn['status_aktif']); ?></td>
                                 <td><?php echo htmlspecialchars($dsn['email']); ?></td>
-                                <td><?php echo htmlspecialchars($dsn['nomor_telepon']); ?></td>
+                                <td><?php echo htmlspecialchars($dsn['nomor_telepon'] ?? ''); ?></td>
                                 <td>
                                     <button class="btn btn-warning btn-sm" onclick="editDosen(<?php echo $dsn['id']; ?>, '<?php echo htmlspecialchars($dsn['nidn'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nama_lengkap'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nomor_telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['status_aktif'], ENT_QUOTES); ?>')">Edit</button>
                                     <form action="<?php echo BASE_URL; ?>/admin/hapusDosen/<?php echo $dsn['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data dosen ini? Tindakan ini juga akan menghapus akun user terkait.');">
