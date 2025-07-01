@@ -7,11 +7,29 @@
     </div>
 
     <div class="container">
-        <?php if (isset($data['error'])) : ?>
-            <div class="alert alert-danger"><?php echo $data['error']; ?></div>
+        <?php if (isset($_SESSION['flash_message'])) : ?>
+            <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?>">
+                <?php echo $_SESSION['flash_message']['message']; unset($_SESSION['flash_message']); ?>
+            </div>
         <?php endif; ?>
 
-        <button class="btn btn-primary" onclick="showForm('addForm')">Tambah Dosen Baru</button>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button class="btn btn-primary" onclick="showForm('addForm')">Tambah Dosen Baru</button>
+            <button class="btn btn-success" onclick="showForm('importForm')">Import dari CSV</button>
+        </div>
+
+        <div id="importForm" class="form-container" style="display: none; background-color: #e9f5ff;">
+            <h3>Import Data Dosen dari File CSV</h3>
+            <form action="<?php echo BASE_URL; ?>/admin/importDosen" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="csv_file">Pilih File CSV</label>
+                    <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
+                    <small>Sistem hanya akan membaca kolom yang sesuai (NIDN, Nama, Email, No. HP, Status).</small>
+                </div>
+                <button type="submit" class="btn btn-success">Unggah dan Import</button>
+                <button type="button" class="btn btn-secondary" onclick="hideForm('importForm')">Batal</button>
+            </form>
+        </div>
 
         <div id="addForm" class="form-container" style="display: none;">
             <h3>Tambah Dosen Baru</h3>
@@ -100,7 +118,8 @@
                                 <td><?php echo htmlspecialchars($dsn['email']); ?></td>
                                 <td><?php echo htmlspecialchars($dsn['nomor_telepon'] ?? ''); ?></td>
                                 <td>
-                                    <button class="btn btn-warning btn-sm" onclick="editDosen(<?php echo $dsn['id']; ?>, '<?php echo htmlspecialchars($dsn['nidn'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nama_lengkap'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nomor_telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['status_aktif'], ENT_QUOTES); ?>')">Edit</button>
+                                    <a href="<?php echo BASE_URL; ?>/admin/editDosen/<?php echo $dsn['id']; ?>" class="btn btn-warning btn-sm">Edit</a>
+                                    <!-- <button class="btn btn-warning btn-sm" onclick="editDosen(<?php echo $dsn['id']; ?>, '<?php echo htmlspecialchars($dsn['nidn'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nama_lengkap'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nomor_telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['status_aktif'], ENT_QUOTES); ?>')">Edit</button> -->
                                     <form action="<?php echo BASE_URL; ?>/admin/hapusDosen/<?php echo $dsn['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data dosen ini? Tindakan ini juga akan menghapus akun user terkait.');">
                                         <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                     </form>

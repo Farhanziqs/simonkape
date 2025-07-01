@@ -7,8 +7,8 @@ class Database {
     private $pass = DB_PASS;
     private $dbname = DB_NAME;
 
-    private $dbh; // Database Handler
-    private $stmt; // Statement
+    private PDO $dbh; // Database Handler
+    private PDOStatement $stmt; // Statement
 
     public function __construct() {
         // DSN (Data Source Name)

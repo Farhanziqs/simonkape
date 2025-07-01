@@ -1,5 +1,5 @@
 <div class="sidebar">
-    <h3>SIMONKAPE</h3>
+    <h3 class="sidebar-title">SIMONKAPE</h3>
     <ul>
         <li><a href="<?php echo BASE_URL; ?>/admin" class="<?php echo (isset($data['active_menu']) && $data['active_menu'] == 'dashboard') ? 'active' : ''; ?>">Dashboard</a></li>
         <li><a href="<?php echo BASE_URL; ?>/admin/mahasiswa" class="<?php echo (isset($data['active_menu']) && $data['active_menu'] == 'mahasiswa') ? 'active' : ''; ?>">Manajemen Mahasiswa</a></li>

@@ -18,7 +18,7 @@ class Mahasiswa {
     }
 
     public function getMahasiswaById($id) {
-        $this->db->query('SELECT m.*, i.nama_instansi, d.nama_lengkap as nama_dosen
+        $this->db->query('SELECT m.*, i.nama_instansi, d.nama_lengkap as nama_dosen, d.nidn
                           FROM mahasiswa m
                           LEFT JOIN instansi i ON m.instansi_id = i.id
                           LEFT JOIN dosen d ON m.dosen_pembimbing_id = d.id
@@ -34,27 +34,40 @@ class Mahasiswa {
     }
 
     public function addMahasiswa($data) {
-        $this->db->query('INSERT INTO mahasiswa (nim, nama_lengkap, program_studi, instansi_id, dosen_pembimbing_id, status_kp)
-                          VALUES (:nim, :nama_lengkap, :program_studi, :instansi_id, :dosen_pembimbing_id, :status_kp)');
+        $this->db->query('INSERT INTO mahasiswa (nim, nama_lengkap, program_studi, instansi_id, nomor_telepon, dosen_pembimbing_id, status_kp)
+                          VALUES (:nim, :nama_lengkap, :program_studi, :instansi_id, :nomor_telepon, :dosen_pembimbing_id, :status_kp)');
         $this->db->bind(':nim', $data['nim']);
         $this->db->bind(':nama_lengkap', $data['nama_lengkap']);
         $this->db->bind(':program_studi', $data['program_studi']);
         $this->db->bind(':instansi_id', $data['instansi_id']);
+        $this->db->bind(':nomor_telepon', $data['nomor_telepon']);
         $this->db->bind(':dosen_pembimbing_id', $data['dosen_pembimbing_id']);
         $this->db->bind(':status_kp', $data['status_kp']);
 
         return $this->db->execute();
     }
 
+    public function addMahasiswaFromCSV($data) {
+        $this->db->query('INSERT INTO mahasiswa (nim, nama_lengkap, program_studi, nomor_telepon, status_kp)
+                          VALUES (:nim, :nama_lengkap, :program_studi, :nomor_telepon, :status_kp)');
+        $this->db->bind(':nim', $data['nim']);
+        $this->db->bind(':nama_lengkap', $data['nama_lengkap']);
+        $this->db->bind(':program_studi', $data['program_studi']);
+        $this->db->bind(':nomor_telepon', $data['nomor_telepon']);
+        $this->db->bind(':status_kp', $data['status_kp']);
+
+        return $this->db->execute();
+    }
+
     public function updateMahasiswa($data) {
-        $this->db->query('UPDATE mahasiswa SET nim = :nim, nama_lengkap = :nama_lengkap, program_studi = :program_studi,
-                          instansi_id = :instansi_id, dosen_pembimbing_id = :dosen_pembimbing_id, status_kp = :status_kp
+        $this->db->query('UPDATE mahasiswa SET nim = :nim, nama_lengkap = :nama_lengkap, program_studi = :program_studi, instansi_id = :instansi_id, nomor_telepon = :nomor_telepon, dosen_pembimbing_id = :dosen_pembimbing_id, status_kp = :status_kp
                           WHERE id = :id');
         $this->db->bind(':id', $data['id']);
         $this->db->bind(':nim', $data['nim']);
         $this->db->bind(':nama_lengkap', $data['nama_lengkap']);
         $this->db->bind(':program_studi', $data['program_studi']);
         $this->db->bind(':instansi_id', $data['instansi_id']);
+        $this->db->bind(':nomor_telepon', $data['nomor_telepon']);
         $this->db->bind(':dosen_pembimbing_id', $data['dosen_pembimbing_id']);
         $this->db->bind(':status_kp', $data['status_kp']);
 
@@ -74,9 +87,16 @@ class Mahasiswa {
         return $result['total'];
     }
 
+    // public function getTotalLaporanMingguanPerluVerifikasi() {
+    //     // Asumsi 'Menunggu Persetujuan' adalah status yang perlu diverifikasi
+    //     $this->db->query("SELECT COUNT(*) as total FROM laporan_mingguan WHERE status_laporan = 'Menunggu Persetujuan'");
+    //     $result = $this->db->single();
+    //     return $result['total'];
+    // }
+
     public function getTotalLaporanMingguanPerluVerifikasi() {
-        // Asumsi 'Menunggu Persetujuan' adalah status yang perlu diverifikasi
-        $this->db->query("SELECT COUNT(*) as total FROM laporan_mingguan WHERE status_laporan = 'Menunggu Persetujuan'");
+        // PERBAIKAN: Mengubah query untuk menghitung semua laporan yang dibuat dalam 7 hari terakhir
+        $this->db->query("SELECT COUNT(*) as total FROM laporan_mingguan WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
         $result = $this->db->single();
         return $result['total'];
     }
@@ -113,5 +133,18 @@ class Mahasiswa {
     public function getMahasiswaPerStatusKp() {
         $this->db->query('SELECT status_kp, COUNT(*) as total FROM mahasiswa GROUP BY status_kp');
         return $this->db->resultSet();
+    }
+    // START - New function for Dosen role
+    public function getMahasiswaByDosenId($dosen_id) {
+        $this->db->query('SELECT * FROM mahasiswa WHERE dosen_pembimbing_id = :dosen_id ORDER BY nama_lengkap ASC');
+        $this->db->bind(':dosen_id', $dosen_id);
+        return $this->db->resultSet();
+    }
+
+    public function getMahasiswaCountByDosenId($dosen_id) {
+        $this->db->query('SELECT COUNT(*) as total FROM mahasiswa WHERE dosen_pembimbing_id = :dosen_id');
+        $this->db->bind(':dosen_id', $dosen_id);
+        $result = $this->db->single();
+        return $result['total'];
     }
 }

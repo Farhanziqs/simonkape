@@ -10,13 +10,48 @@ class App {
         $url = $this->parseUrl();
 
         // Cek controller
-        if (file_exists(APP_ROOT . '/app/controllers/' . ucfirst($url[0]) . 'Controller.php')) {
-            $this->controller = ucfirst($url[0]);
-            unset($url[0]);
-        } else {
-            // Handle 404 atau redirect ke default
-            header('Location: ' . BASE_URL . '/auth'); // Atau halaman error 404
-            exit();
+        // if (file_exists(APP_ROOT . '/app/controllers/' . ucfirst($url[0]) . 'Controller.php')) {
+        //     $this->controller = ucfirst($url[0]);
+        //     unset($url[0]);
+        // } else {
+        //     // Handle 404 atau redirect ke default
+        //     header('Location: ' . BASE_URL . '/auth'); // Atau halaman error 404
+        //     exit();
+        // }
+        // // Tambahkan pengecekan untuk MahasiswaController
+        // if (isset($url[0])) {
+        //     if (file_exists(APP_ROOT . '/app/controllers/' . ucfirst($url[0]) . 'Controller.php')) {
+        //         $this->controller = ucfirst($url[0]);
+        //         unset($url[0]);
+        //     } else if (file_exists(APP_ROOT . '/app/controllers/MahasiswaController.php') && $url[0] == 'mahasiswa') {
+        //          // Ini untuk memastikan 'mahasiswa' tanpa 'Controller' di URL tetap bisa
+        //          $this->controller = 'Mahasiswa';
+        //          unset($url[0]);
+        //     } else {
+        //         // Handle 404 atau redirect ke default
+        //         header('Location: ' . BASE_URL . '/auth'); // Atau halaman error 404
+        //         exit();
+        //     }
+        // }
+
+        // // dosen
+        // if (isset($url[0])) {
+        //     if (file_exists(APP_ROOT . '/app/controllers/' . ucfirst($url[0]) . 'Controller.php')) {
+        //         $this->controller = ucfirst($url[0]);
+        //         unset($url[0]);
+        //     }
+        // }
+
+        if (isset($url[0])) {
+            $controllerFile = ucfirst($url[0]) . 'Controller.php';
+            if (file_exists(APP_ROOT . '/app/controllers/' . $controllerFile)) {
+                $this->controller = ucfirst($url[0]);
+                unset($url[0]);
+            } else {
+                // Handle 404 or redirect to default
+                header('Location: ' . BASE_URL . '/auth'); // Or a 404 error page
+                exit();
+            }
         }
 
         require_once APP_ROOT . '/app/controllers/' . $this->controller . 'Controller.php';

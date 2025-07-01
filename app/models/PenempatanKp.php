@@ -168,4 +168,13 @@ class PenempatanKp {
         $this->db->bind(':penempatan_kp_id', $penempatan_kp_id);
         return $this->db->resultSet();
     }
+
+    public function getPenempatanByMahasiswaId($mahasiswa_id) {
+        $this->db->query('SELECT pk.*
+                          FROM penempatan_kp pk
+                          JOIN penempatan_kp_mahasiswa pkm ON pk.id = pkm.penempatan_kp_id
+                          WHERE pkm.mahasiswa_id = :mahasiswa_id');
+        $this->db->bind(':mahasiswa_id', $mahasiswa_id);
+        return $this->db->single();
+    }
 }

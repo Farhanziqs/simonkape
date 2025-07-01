@@ -78,4 +78,10 @@ class Dosen {
                           ORDER BY d.nama_lengkap ASC');
         return $this->db->resultSet();
     }
+
+    public function getMahasiswaByDosenId($dosen_id) {
+        $this->db->query('SELECT * FROM mahasiswa WHERE dosen_pembimbing_id = :dosen_id');
+        $this->db->bind(':dosen_id', $dosen_id);
+        return $this->db->resultSet();
+    }
 }

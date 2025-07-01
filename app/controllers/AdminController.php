@@ -52,6 +52,7 @@ class AdminController extends Controller {
                 'nama_lengkap' => trim($_POST['nama_lengkap']),
                 'program_studi' => trim($_POST['program_studi']),
                 'instansi_id' => !empty($_POST['instansi_id']) ? $_POST['instansi_id'] : null,
+                'nomor_telepon' => trim($_POST['nomor_telepon']),
                 'dosen_pembimbing_id' => !empty($_POST['dosen_pembimbing_id']) ? $_POST['dosen_pembimbing_id'] : null,
                 'status_kp' => trim($_POST['status_kp']),
                 'error' => ''
@@ -72,9 +73,8 @@ class AdminController extends Controller {
 
             if ($this->mahasiswaModel->addMahasiswa($data)) {
                 // Buat akun user otomatis
-                $hashed_password = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
                 $mahasiswa_baru = $this->mahasiswaModel->getMahasiswaByNim($data['nim']); // Ambil data mahasiswa yang baru dibuat untuk mendapatkan ID
-                $this->userModel->addUser($data['nim'], $hashed_password, 'mahasiswa', $mahasiswa_baru['id']);
+                $this->userModel->addUser($data['nim'], 'mahasiswa', $mahasiswa_baru['id']);
                 header('Location: ' . BASE_URL . '/admin/mahasiswa');
                 exit();
             } else {
@@ -95,6 +95,7 @@ class AdminController extends Controller {
                 'nama_lengkap' => trim($_POST['nama_lengkap']),
                 'program_studi' => trim($_POST['program_studi']),
                 'instansi_id' => !empty($_POST['instansi_id']) ? $_POST['instansi_id'] : null,
+                'nomor_telepon' => trim($_POST['nomor_telepon']),
                 'dosen_pembimbing_id' => !empty($_POST['dosen_pembimbing_id']) ? $_POST['dosen_pembimbing_id'] : null,
                 'status_kp' => trim($_POST['status_kp']),
                 'error' => ''
@@ -204,9 +205,8 @@ class AdminController extends Controller {
 
             if ($this->dosenModel->addDosen($data)) {
                 // Buat akun user otomatis
-                $hashed_password = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
                 $dosen_baru = $this->dosenModel->getDosenByNidn($data['nidn']); // Ambil data dosen yang baru dibuat untuk mendapatkan ID
-                $this->userModel->addUser($data['nidn'], $hashed_password, 'dosen', $dosen_baru['id']);
+                $this->userModel->addUser($data['nidn'], 'dosen', $dosen_baru['id']);
                 header('Location: ' . BASE_URL . '/admin/dosen');
                 exit();
             } else {
@@ -294,6 +294,164 @@ class AdminController extends Controller {
         exit();
     }
 
+    public function importDosen() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['csv_file'])) {
+            $file = $_FILES['csv_file']['tmp_name'];
+            $file_extension = pathinfo($_FILES['csv_file']['name'], PATHINFO_EXTENSION);
+
+            if (strtolower($file_extension) != 'csv') {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Format file tidak valid. Harap unggah file .csv'];
+                header('Location: ' . BASE_URL . '/admin/dosen');
+                exit();
+            }
+
+            $handle = fopen($file, "r");
+            $header = fgetcsv($handle, 1000, ","); // Baca baris header
+
+            // Petakan nama kolom yang kita inginkan dengan kemungkinan nama di file CSV
+            $kolomMapping = [
+                'nidn' => array_search('nidn', array_map('strtolower', $header)),
+                'nama_lengkap' => array_search('nama lengkap', array_map('strtolower', $header)),
+                'email' => array_search('email', array_map('strtolower', $header)),
+                'nomor_telepon' => array_search('nomor telepon', array_map('strtolower', $header)),
+                'status_aktif' => array_search('status', array_map('strtolower', $header))
+            ];
+
+            // Cek jika kolom wajib tidak ditemukan
+            if ($kolomMapping['nidn'] === false || $kolomMapping['nama_lengkap'] === false || $kolomMapping['email'] === false) {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'File CSV tidak memiliki header kolom wajib: nidn, nama lengkap, email.'];
+                header('Location: ' . BASE_URL . '/admin/dosen');
+                exit();
+            }
+
+            $berhasil = 0;
+            $gagal = 0;
+            $pesan_gagal = [];
+            $baris = 1;
+
+            while (($data_csv = fgetcsv($handle, 1000, ",")) !== false) {
+                $baris++;
+
+                // Ambil data berdasarkan posisi kolom yang sudah dipetakan
+                $data_dosen = [
+                    'nidn' => trim($data_csv[$kolomMapping['nidn']]),
+                    'nama_lengkap' => trim($data_csv[$kolomMapping['nama_lengkap']]),
+                    'email' => trim($data_csv[$kolomMapping['email']]),
+                    'nomor_telepon' => ($kolomMapping['nomor_telepon'] !== false) ? trim($data_csv[$kolomMapping['nomor_telepon']]) : '',
+                    'status_aktif' => ($kolomMapping['status_aktif'] !== false) ? trim($data_csv[$kolomMapping['status_aktif']]) : 'Aktif'
+                ];
+
+                // Validasi data
+                if (empty($data_dosen['nidn']) || empty($data_dosen['nama_lengkap']) || empty($data_dosen['email'])) {
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: NIDN, Nama, atau Email kosong.";
+                    continue;
+                }
+                if ($this->dosenModel->getDosenByNidn($data_dosen['nidn']) || $this->dosenModel->getDosenByEmail($data_dosen['email'])) {
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: NIDN atau Email '{$data_dosen['nidn']}' sudah terdaftar.";
+                    continue;
+                }
+
+                // Tambahkan dosen jika valid
+                if ($this->dosenModel->addDosen($data_dosen)) {
+                    $dosen_baru = $this->dosenModel->getDosenByNidn($data_dosen['nidn']);
+
+                    if (!$this->userModel->addUser($data_dosen['nidn'], 'dosen', $dosen_baru['id'])) {
+                        goto langkahi;
+                    }
+
+                    $berhasil++;
+                } else {
+                    langkahi:
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: Gagal menyimpan ke database.";
+                }
+            }
+            fclose($handle);
+
+            $pesan = "Proses import selesai. Berhasil: {$berhasil} data. Gagal: {$gagal} data.";
+            if($gagal > 0){ $pesan .= " Detail: " . implode(" ", $pesan_gagal); }
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => $pesan];
+        }
+
+        header('Location: ' . BASE_URL . '/admin/dosen');
+        exit();
+    }
+
+    public function importMahasiswa() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['csv_file'])) {
+            $file = $_FILES['csv_file']['tmp_name'];
+            $file_extension = pathinfo($_FILES['csv_file']['name'], PATHINFO_EXTENSION);
+
+            if (strtolower($file_extension) != 'csv') {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Format file tidak valid. Harap unggah file .csv'];
+                header('Location: ' . BASE_URL . '/admin/mahasiswa');
+                exit();
+            }
+
+            $handle = fopen($file, "r");
+            $header = fgetcsv($handle, 1000, ",");
+
+            // Petakan kolom yang dibutuhkan (NIM dan Nama adalah wajib)
+            $kolomMapping = [
+                'nim' => array_search('nim', array_map('strtolower', $header)),
+                'nama_lengkap' => array_search('nama lengkap', array_map('strtolower', $header)),
+                'nomor_telepon' => array_search('nomor telepon', array_map('strtolower', $header))
+            ];
+
+            if ($kolomMapping['nim'] === false || $kolomMapping['nama_lengkap'] === false) {
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'File CSV tidak memiliki header kolom wajib: nim, nama lengkap.'];
+                 header('Location: ' . BASE_URL . '/admin/mahasiswa');
+                 exit();
+            }
+
+            $berhasil = 0;
+            $gagal = 0;
+            $pesan_gagal = [];
+            $baris = 1;
+
+            while (($data_csv = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                $baris++;
+
+                $data_mahasiswa = [
+                    'nim' => trim($data_csv[$kolomMapping['nim']]),
+                    'nama_lengkap' => trim($data_csv[$kolomMapping['nama_lengkap']]),
+                    'nomor_telepon' => ($kolomMapping['nomor_telepon'] !== false) ? trim($data_csv[$kolomMapping['nomor_telepon']]) : null,
+                    'program_studi' => 'Teknik Informatika', // Default
+                    'status_kp' => 'Belum Terdaftar' // Default
+                ];
+
+                if (empty($data_mahasiswa['nim']) || empty($data_mahasiswa['nama_lengkap'])) {
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: NIM atau Nama kosong.";
+                    continue;
+                }
+                if ($this->mahasiswaModel->getMahasiswaByNim($data_mahasiswa['nim'])) {
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: NIM '{$data_mahasiswa['nim']}' sudah terdaftar.";
+                    continue;
+                }
+
+                if ($this->mahasiswaModel->addMahasiswaFromCSV($data_mahasiswa)) {
+                    $mhs_baru = $this->mahasiswaModel->getMahasiswaByNim($data_mahasiswa['nim']);
+                    $this->userModel->addUser($data_mahasiswa['nim'], 'mahasiswa', $mhs_baru['id']);
+                    $berhasil++;
+                } else {
+                    $gagal++;
+                    $pesan_gagal[] = "Baris {$baris}: Gagal menyimpan ke database.";
+                }
+            }
+            fclose($handle);
+
+            $pesan = "Proses import selesai. Berhasil: {$berhasil} data. Gagal: {$gagal} data.";
+            if($gagal > 0){ $pesan .= " Detail: " . implode(" ", $pesan_gagal); }
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => $pesan];
+        }
+
+        header('Location: ' . BASE_URL . '/admin/mahasiswa');
+        exit();
+    }
     // --- Manajemen Instansi ---
     public function instansi() {
         $data['active_menu'] = 'instansi';
@@ -305,7 +463,6 @@ class AdminController extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = [
                 'nama_instansi' => trim($_POST['nama_instansi']),
-                'bidang_kerja' => trim($_POST['bidang_kerja']),
                 'alamat' => trim($_POST['alamat']),
                 'kota_kab' => trim($_POST['kota_kab']),
                 'telepon' => trim($_POST['telepon']),
@@ -343,7 +500,6 @@ class AdminController extends Controller {
             $data = [
                 'id' => $id,
                 'nama_instansi' => trim($_POST['nama_instansi']),
-                'bidang_kerja' => trim($_POST['bidang_kerja']),
                 'alamat' => trim($_POST['alamat']),
                 'kota_kab' => trim($_POST['kota_kab']),
                 'telepon' => trim($_POST['telepon']),

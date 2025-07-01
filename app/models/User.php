@@ -28,7 +28,9 @@ class User {
     }
 
     // Fungsi baru untuk menambahkan user
-    public function addUser($username, $password_hash, $role, $specific_user_id = null) {
+    public function addUser($username, $role, $specific_user_id = null): bool {
+        $password_hash = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
+
         $this->db->query('INSERT INTO users (username, password, role, user_id) VALUES (:username, :password, :role, :user_id)');
         $this->db->bind(':username', $username);
         $this->db->bind(':password', $password_hash);
