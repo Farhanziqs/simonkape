@@ -8,5 +8,22 @@
         <li><a href="<?php echo BASE_URL; ?>/admin/penempatan" class="<?php echo (isset($data['active_menu']) && $data['active_menu'] == 'penempatan') ? 'active' : ''; ?>">Manajemen Penempatan KP</a></li>
         <li><a href="<?php echo BASE_URL; ?>/admin/laporan" class="<?php echo (isset($data['active_menu']) && $data['active_menu'] == 'laporan') ? 'active' : ''; ?>">Laporan & Rekapitulasi</a></li>
         <li><a href="<?php echo BASE_URL; ?>/auth/logout" class="logout-btn">Logout</a></li>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const links = document.querySelectorAll('div.sidebar a');
+                links.forEach(link => {
+                    // Bandingkan href absolut dengan URL saat ini
+                    if (link.href === window.location.href) {
+                        // Nonaktifkan link
+                        link.style.pointerEvents = 'none';
+                        // link.style.color = 'gray'; // opsional: ubah tampilan
+                        // link.style.textDecoration = 'none'; // opsional: hilangkan underline
+                        link.setAttribute('aria-disabled', 'true');
+                        // link.title = 'You are here'; // opsional: penanda
+                    }
+                });
+            });
+        </script>
     </ul>
 </div>
