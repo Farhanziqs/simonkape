@@ -1,5 +1,8 @@
 <?php
 // simonkapedb/app/controllers/AdminController.php
+require_once APP_ROOT . '/app/libraries/dompdf/autoload.inc.php'; // Pastikan path ini benar!
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class AdminController extends Controller {
     private $mahasiswaModel;
@@ -166,6 +169,108 @@ class AdminController extends Controller {
         exit();
     }
 
+    public function importMahasiswaCsv() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['csv_file']['tmp_name'])) {
+            $file = $_FILES['csv_file']['tmp_name'];
+            $handle = fopen($file, "r");
+            if ($handle === FALSE) {
+                $_SESSION['error_message'] = 'Gagal membuka file CSV.';
+                header('Location: ' . BASE_URL . '/admin/mahasiswa');
+                exit();
+            }
+
+            $header = fgetcsv($handle, 1000, ","); // Ambil baris header
+            // Field yang relevan dengan input form dan tabel mahasiswa
+            $expected_fields = ['nim', 'nama_lengkap', 'program_studi', 'instansi_id', 'dosen_pembimbing_id'];
+            $imported_count = 0;
+            $failed_count = 0;
+            $error_messages = [];
+
+            while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                if (count($row) == 0) continue; // Lewati baris kosong
+
+                $mahasiswa_data = [];
+                // Mapping data dari CSV ke field yang diharapkan dan memfilter kolom lain
+                foreach ($header as $key => $col_name) {
+                    $col_name_cleaned = trim(strtolower($col_name));
+                    if (in_array($col_name_cleaned, $expected_fields)) {
+                        $mahasiswa_data[$col_name_cleaned] = trim($row[$key]);
+                    }
+                }
+
+                // Otomatis set status_kp menjadi 'Terdaftar'
+                $mahasiswa_data['status_kp'] = 'Terdaftar';
+
+                // Set nilai default untuk program_studi jika tidak ada di CSV
+                $mahasiswa_data['program_studi'] = $mahasiswa_data['program_studi'] ?? 'Teknik Informatika';
+
+
+                // Validasi dasar untuk field yang wajib: nim, nama_lengkap
+                if (empty($mahasiswa_data['nim']) || empty($mahasiswa_data['nama_lengkap'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati (NIM atau Nama Lengkap kosong di baris: ' . implode(', ', $row) . ').';
+                    continue;
+                }
+
+                // Cek apakah NIM sudah terdaftar untuk mencegah duplikasi
+                if ($this->mahasiswaModel->getMahasiswaByNim($mahasiswa_data['nim'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati: NIM ' . htmlspecialchars($mahasiswa_data['nim']) . ' sudah terdaftar.';
+                    continue;
+                }
+
+                // Konversi nama instansi menjadi ID jika diberikan nama (bukan ID numerik)
+                if (isset($mahasiswa_data['instansi_id']) && !empty($mahasiswa_data['instansi_id'])) {
+                    $instansi = $this->instansiModel->getInstansiByName($mahasiswa_data['instansi_id']);
+                    $mahasiswa_data['instansi_id'] = $instansi ? $instansi['id'] : null;
+                    if (!$mahasiswa_data['instansi_id']) {
+                        $error_messages[] = 'Instansi "' . htmlspecialchars($mahasiswa_data['instansi_id']) . '" tidak ditemukan untuk NIM ' . htmlspecialchars($mahasiswa_data['nim']) . '.';
+                    }
+                } else {
+                    $mahasiswa_data['instansi_id'] = null;
+                }
+
+                // Konversi NIDN dosen menjadi ID jika diberikan NIDN (bukan ID numerik)
+                if (isset($mahasiswa_data['dosen_pembimbing_id']) && !empty($mahasiswa_data['dosen_pembimbing_id'])) {
+                    $dosen = $this->dosenModel->getDosenByNidn($mahasiswa_data['dosen_pembimbing_id']);
+                    $mahasiswa_data['dosen_pembimbing_id'] = $dosen ? $dosen['id'] : null;
+                    if (!$mahasiswa_data['dosen_pembimbing_id']) {
+                        $error_messages[] = 'Dosen dengan NIDN "' . htmlspecialchars($mahasiswa_data['dosen_pembimbing_id']) . '" tidak ditemukan untuk NIM ' . htmlspecialchars($mahasiswa_data['nim']) . '.';
+                    }
+                } else {
+                    $mahasiswa_data['dosen_pembimbing_id'] = null;
+                }
+
+                // Tambahkan mahasiswa ke database
+                if ($this->mahasiswaModel->addMahasiswa($mahasiswa_data)) {
+                    $hashed_password = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
+                    $mahasiswa_baru = $this->mahasiswaModel->getMahasiswaByNim($mahasiswa_data['nim']);
+                    if ($mahasiswa_baru) {
+                        $this->userModel->addUser($mahasiswa_data['nim'], $hashed_password, 'mahasiswa', $mahasiswa_baru['id']);
+                    }
+                    $imported_count++;
+                } else {
+                    $failed_count++;
+                    $error_messages[] = 'Gagal menambahkan mahasiswa ' . htmlspecialchars($mahasiswa_data['nim']) . '.';
+                }
+            }
+            fclose($handle);
+
+            // Set pesan feedback ke session
+            if ($imported_count > 0) {
+                $_SESSION['success_message'] = $imported_count . ' mahasiswa berhasil diimpor.';
+            }
+            if ($failed_count > 0) {
+                // Tampilkan pesan error secara lebih spesifik, hindari duplikasi pesan
+                $_SESSION['error_message'] = $failed_count . ' mahasiswa gagal diimpor. Detail: ' . implode('; ', array_unique($error_messages));
+            }
+        } else {
+            $_SESSION['error_message'] = 'Tidak ada file CSV yang diunggah atau metode request tidak sesuai.';
+        }
+        header('Location: ' . BASE_URL . '/admin/mahasiswa');
+        exit();
+    }
+
 
     // --- Manajemen Dosen ---
     public function dosen() {
@@ -294,6 +399,88 @@ class AdminController extends Controller {
         exit();
     }
 
+    public function importDosenCsv() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['csv_file']['tmp_name'])) {
+            $file = $_FILES['csv_file']['tmp_name'];
+            $handle = fopen($file, "r");
+            if ($handle === FALSE) {
+                $_SESSION['error_message'] = 'Gagal membuka file CSV.';
+                header('Location: ' . BASE_URL . '/admin/dosen');
+                exit();
+            }
+
+            $header = fgetcsv($handle, 1000, ","); // Ambil baris header
+            // Field yang relevan dengan input form dan tabel dosen
+            $expected_fields = ['nidn', 'nama_lengkap', 'email', 'nomor_telepon', 'status_aktif'];
+            $imported_count = 0;
+            $failed_count = 0;
+            $error_messages = [];
+
+            while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                if (count($row) == 0) continue; // Lewati baris kosong
+
+                $dosen_data = [];
+                // Mapping data dari CSV ke field yang diharapkan dan memfilter kolom lain
+                foreach ($header as $key => $col_name) {
+                    $col_name_cleaned = trim(strtolower($col_name));
+                    if (in_array($col_name_cleaned, $expected_fields)) {
+                        $dosen_data[$col_name_cleaned] = trim($row[$key]);
+                    }
+                }
+
+                // Set nilai default untuk status_aktif jika tidak ada di CSV
+                $dosen_data['status_aktif'] = $dosen_data['status_aktif'] ?? 'Aktif';
+
+                // Validasi dasar untuk field yang wajib: nidn, nama_lengkap, email
+                if (empty($dosen_data['nidn']) || empty($dosen_data['nama_lengkap']) || empty($dosen_data['email'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati (NIDN, Nama Lengkap, atau Email kosong di baris: ' . implode(', ', $row) . ').';
+                    continue;
+                }
+
+                // Cek apakah NIDN sudah terdaftar untuk mencegah duplikasi
+                if ($this->dosenModel->getDosenByNidn($dosen_data['nidn'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati: NIDN ' . htmlspecialchars($dosen_data['nidn']) . ' sudah terdaftar.';
+                    continue;
+                }
+                // Cek apakah Email sudah terdaftar untuk mencegah duplikasi
+                if ($this->dosenModel->getDosenByEmail($dosen_data['email'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati: Email ' . htmlspecialchars($dosen_data['email']) . ' sudah terdaftar.';
+                    continue;
+                }
+
+                // Tambahkan dosen ke database
+                if ($this->dosenModel->addDosen($dosen_data)) {
+                    // Buat akun user otomatis untuk dosen yang baru diimpor
+                    $hashed_password = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
+                    $dosen_baru = $this->dosenModel->getDosenByNidn($dosen_data['nidn']);
+                    if ($dosen_baru) {
+                        $this->userModel->addUser($dosen_data['nidn'], $hashed_password, 'dosen', $dosen_baru['id']);
+                    }
+                    $imported_count++;
+                } else {
+                    $failed_count++;
+                    $error_messages[] = 'Gagal menambahkan dosen ' . htmlspecialchars($dosen_data['nidn']) . '.';
+                }
+            }
+            fclose($handle);
+
+            // Set pesan feedback ke session
+            if ($imported_count > 0) {
+                $_SESSION['success_message'] = $imported_count . ' dosen berhasil diimpor.';
+            }
+            if ($failed_count > 0) {
+                $_SESSION['error_message'] = $failed_count . ' dosen gagal diimpor. Detail: ' . implode('; ', array_unique($error_messages));
+            }
+        } else {
+            $_SESSION['error_message'] = 'Tidak ada file CSV yang diunggah atau metode request tidak sesuai.';
+        }
+        header('Location: ' . BASE_URL . '/admin/dosen');
+        exit();
+    }
+
     // --- Manajemen Instansi ---
     public function instansi() {
         $data['active_menu'] = 'instansi';
@@ -305,7 +492,6 @@ class AdminController extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = [
                 'nama_instansi' => trim($_POST['nama_instansi']),
-                'bidang_kerja' => trim($_POST['bidang_kerja']),
                 'alamat' => trim($_POST['alamat']),
                 'kota_kab' => trim($_POST['kota_kab']),
                 'telepon' => trim($_POST['telepon']),
@@ -343,7 +529,6 @@ class AdminController extends Controller {
             $data = [
                 'id' => $id,
                 'nama_instansi' => trim($_POST['nama_instansi']),
-                'bidang_kerja' => trim($_POST['bidang_kerja']),
                 'alamat' => trim($_POST['alamat']),
                 'kota_kab' => trim($_POST['kota_kab']),
                 'telepon' => trim($_POST['telepon']),
@@ -400,29 +585,148 @@ class AdminController extends Controller {
         exit();
     }
 
+    public function importInstansiCsv() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['csv_file']['tmp_name'])) {
+            $file = $_FILES['csv_file']['tmp_name'];
+            $handle = fopen($file, "r");
+            if ($handle === FALSE) {
+                $_SESSION['error_message'] = 'Gagal membuka file CSV.';
+                header('Location: ' . BASE_URL . '/admin/instansi');
+                exit();
+            }
+
+            $header = fgetcsv($handle, 1000, ","); // Ambil baris header
+            // Field yang relevan dengan input form dan tabel instansi
+            $expected_fields = ['nama_instansi', 'alamat', 'kota_kab', 'telepon', 'email', 'pic']; // Menambahkan bidang_kerja sesuai schema
+            $imported_count = 0;
+            $failed_count = 0;
+            $error_messages = [];
+
+            while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                if (count($row) == 0) continue; // Lewati baris kosong
+
+                $instansi_data = [];
+                // Mapping data dari CSV ke field yang diharapkan dan memfilter kolom lain
+                foreach ($header as $key => $col_name) {
+                    $col_name_cleaned = trim(strtolower($col_name));
+                    if (in_array($col_name_cleaned, $expected_fields)) {
+                        $instansi_data[$col_name_cleaned] = trim($row[$key]);
+                    }
+                }
+
+                // Validasi dasar untuk field yang wajib: nama_instansi
+                if (empty($instansi_data['nama_instansi'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati (Nama Instansi kosong di baris: ' . implode(', ', $row) . ').';
+                    continue;
+                }
+
+                // Cek apakah Nama Instansi sudah terdaftar untuk mencegah duplikasi
+                if ($this->instansiModel->getInstansiByName($instansi_data['nama_instansi'])) {
+                    $failed_count++;
+                    $error_messages[] = 'Baris dilewati: Nama Instansi ' . htmlspecialchars($instansi_data['nama_instansi']) . ' sudah terdaftar.';
+                    continue;
+                }
+
+                // Tambahkan instansi ke database
+                if ($this->instansiModel->addInstansi($instansi_data)) {
+                    $imported_count++;
+                } else {
+                    $failed_count++;
+                    $error_messages[] = 'Gagal menambahkan instansi ' . htmlspecialchars($instansi_data['nama_instansi']) . '.';
+                }
+            }
+            fclose($handle);
+
+            // Set pesan feedback ke session
+            if ($imported_count > 0) {
+                $_SESSION['success_message'] = $imported_count . ' instansi berhasil diimpor.';
+            }
+            if ($failed_count > 0) {
+                $_SESSION['error_message'] = $failed_count . ' instansi gagal diimpor. Detail: ' . implode('; ', array_unique($error_messages));
+            }
+        } else {
+            $_SESSION['error_message'] = 'Tidak ada file CSV yang diunggah atau metode request tidak sesuai.';
+        }
+        header('Location: ' . BASE_URL . '/admin/instansi');
+        exit();
+    }
+
     // --- Manajemen Penempatan KP / Kelompok Instansi ---
     public function penempatan() {
-    $data['active_menu'] = 'penempatan';
-    $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
-    $data['instansi_list'] = $this->instansiModel->getAllInstansi();
-    $data['dosen_list'] = $this->dosenModel->getAllDosen();
-    $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
+        $data['active_menu'] = 'penempatan';
 
-    // Tambahkan baris berikut:
-    foreach ($data['penempatan_kp'] as &$pkp) {
-        $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+        $raw_penempatan_details = $this->penempatanKpModel->getMahasiswaPenempatanDetails();
+
+        // Proses data untuk rowspan
+        $processed_penempatan = [];
+        $current_instansi = null;
+        $current_dosen = null;
+        $instansi_group_index = -1;
+        $dosen_group_index = -1;
+
+        foreach ($raw_penempatan_details as $detail) {
+            // Group by Instansi
+            if ($detail['nama_instansi'] !== $current_instansi) {
+                $instansi_group_index++;
+                $processed_penempatan[$instansi_group_index] = [
+                    'nama_instansi' => $detail['nama_instansi'],
+                    'instansi_rowspan' => 0, // Akan dihitung nanti
+                    'dosen_groups' => []
+                ];
+                $current_instansi = $detail['nama_instansi'];
+                $current_dosen = null; // Reset dosen group when instansi changes
+            }
+
+            // Group by Dosen within Instansi
+            if ($detail['nama_dosen_pembimbing'] !== $current_dosen) {
+                $dosen_group_index = count($processed_penempatan[$instansi_group_index]['dosen_groups']);
+                $processed_penempatan[$instansi_group_index]['dosen_groups'][$dosen_group_index] = [
+                    'nama_dosen_pembimbing' => $detail['nama_dosen_pembimbing'],
+                    'dosen_rowspan' => 0, // Akan dihitung nanti
+                    'students' => []
+                ];
+                $current_dosen = $detail['nama_dosen_pembimbing'];
+            }
+
+            // Add student to the current dosen group
+            $processed_penempatan[$instansi_group_index]['dosen_groups'][$dosen_group_index]['students'][] = $detail;
+        }
+
+        // Hitung rowspan
+        foreach ($processed_penempatan as $instansi_idx => $inst_group) {
+            $total_instansi_rowspan = 0;
+            foreach ($inst_group['dosen_groups'] as $dosen_idx => $dosen_group) {
+                $num_students = count($dosen_group['students']);
+                $processed_penempatan[$instansi_idx]['dosen_groups'][$dosen_idx]['dosen_rowspan'] = $num_students;
+                $total_instansi_rowspan += $num_students;
+            }
+            $processed_penempatan[$instansi_idx]['instansi_rowspan'] = $total_instansi_rowspan;
+        }
+
+        $data['processed_penempatan_details'] = $processed_penempatan;
+
+        // List instansi dan dosen untuk form tambah/edit
+        $data['instansi_list'] = $this->instansiModel->getAllInstansi();
+        $data['dosen_list'] = $this->dosenModel->getAllDosen();
+        $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
+
+        // Data penempatan_kp (group) masih dimuat jika diperlukan untuk logika edit, dll.
+        // Tidak lagi menjadi sumber data utama untuk tabel di view.
+        $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
+        foreach ($data['penempatan_kp'] as &$pkp) {
+            $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+        }
+        unset($pkp);
+
+        $this->view('admin/penempatan/index', $data);
     }
-    unset($pkp);
-
-    $this->view('admin/penempatan/index', $data);
-}
 
     public function tambahPenempatan() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = [
                 'instansi_id' => $_POST['instansi_id'],
                 'dosen_pembimbing_id' => $_POST['dosen_pembimbing_id'],
-                'nama_kelompok' => trim($_POST['nama_kelompok']),
                 'tanggal_mulai' => trim($_POST['tanggal_mulai']),
                 'tanggal_selesai' => trim($_POST['tanggal_selesai']),
                 'mahasiswa_ids' => isset($_POST['mahasiswa_ids']) ? $_POST['mahasiswa_ids'] : [], // Array ID mahasiswa
@@ -473,7 +777,6 @@ class AdminController extends Controller {
                 'id' => $id,
                 'instansi_id' => $_POST['instansi_id'],
                 'dosen_pembimbing_id' => $_POST['dosen_pembimbing_id'],
-                'nama_kelompok' => trim($_POST['nama_kelompok']),
                 'tanggal_mulai' => trim($_POST['tanggal_mulai']),
                 'tanggal_selesai' => trim($_POST['tanggal_selesai']),
                 'mahasiswa_ids' => isset($_POST['mahasiswa_ids']) ? $_POST['mahasiswa_ids'] : [], // Array ID mahasiswa
@@ -487,6 +790,11 @@ class AdminController extends Controller {
                 $data['dosen_list'] = $this->dosenModel->getAllDosen();
                 $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
                 $data['mahasiswa_saat_ini'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($id);
+                $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp(); // Tetap load ini untuk merge
+                foreach ($data['penempatan_kp'] as &$pkp) {
+                    $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+                }
+                unset($pkp);
                 $this->view('admin/penempatan/index', array_merge($data, ['penempatan_kp' => $this->penempatanKpModel->getAllPenempatanKp()]));
                 return;
             }
@@ -501,7 +809,13 @@ class AdminController extends Controller {
                 $data['dosen_list'] = $this->dosenModel->getAllDosen();
                 $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
                 $data['mahasiswa_saat_ini'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($id);
-                $this->view('admin/penempatan/index', array_merge($data, ['penempatan_kp' => $this->penempatanKpModel->getAllPenempatanKp()]));
+                // Muat data penempatan_kp (group) untuk tabel di background
+                $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
+                foreach ($data['penempatan_kp'] as &$pkp) {
+                    $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+                }
+                unset($pkp);
+                $this->view('admin/penempatan/index', array_merge($data, ['processed_penempatan_details' => $this->penempatanKpModel->getMahasiswaPenempatanDetails()]));
             }
         } else {
             $data['penempatan_edit'] = $this->penempatanKpModel->getPenempatanKpById($id);
@@ -512,12 +826,14 @@ class AdminController extends Controller {
             $data['instansi_list'] = $this->instansiModel->getAllInstansi();
             $data['dosen_list'] = $this->dosenModel->getAllDosen();
             $data['mahasiswa_belum_ditempatkan'] = $this->mahasiswaModel->getMahasiswaBelumDitempatkan();
-            $data['mahasiswa_saat_ini'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($id); // Mahasiswa yang sudah di kelompok ini
+            $data['mahasiswa_saat_ini'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($id);
+            // Muat data penempatan_kp (group) untuk tabel di background
             $data['penempatan_kp'] = $this->penempatanKpModel->getAllPenempatanKp();
-                foreach ($data['penempatan_kp'] as &$pkp) {
-                    $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
-                }
-                unset($pkp);
+            foreach ($data['penempatan_kp'] as &$pkp) {
+                $pkp['mahasiswa_list'] = $this->penempatanKpModel->getMahasiswaByPenempatanId($pkp['id']);
+            }
+            unset($pkp);
+            $data['processed_penempatan_details'] = $this->penempatanKpModel->getMahasiswaPenempatanDetails(); // Load ini agar tabel utama tetap tampil
             $this->view('admin/penempatan/index', $data);
         }
     }
@@ -539,6 +855,283 @@ class AdminController extends Controller {
         exit();
     }
 
+     public function showGenerateSuratForm($penempatan_id) {
+        $penempatan = $this->penempatanKpModel->getPenempatanKpById($penempatan_id);
+
+        if (!$penempatan) {
+            $_SESSION['error_message'] = 'Penempatan KP tidak ditemukan.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $data['active_menu'] = 'penempatan';
+        $data['title'] = 'Generate Surat Pengantar - SIMONKAPE';
+        $data['penempatan_id'] = $penempatan_id;
+        $data['penempatan'] = $penempatan;
+
+        // Default values for form: ambil dari DB jika sudah ada, kalau tidak pakai default
+        $data['default_nomor_surat'] = $penempatan['nomor_surat_kp'] ?? '037/Q.11/TI-UND/IV/'.date('Y', time());
+        $data['default_kepada_yth_nama'] = $penempatan['kepada_yth_kp'] ?? ('KEPALA ' . strtoupper($penempatan['nama_instansi'] ?? 'INSTANSI TERKAIT'));
+        $data['default_alamat_tujuan'] = $penempatan['alamat_tujuan_kp'] ?? '';
+
+        // Jika alamat_tujuan dari DB kosong, coba generate dari instansi
+        if (empty($data['default_alamat_tujuan'])) {
+            if (!empty($penempatan['instansi_alamat'])) {
+                $data['default_alamat_tujuan'] .= $penempatan['instansi_alamat'];
+            }
+            if (!empty($penempatan['instansi_kota_kab'])) {
+                if (!empty($data['default_alamat_tujuan'])) {
+                    $data['default_alamat_tujuan'] .= ', ';
+                }
+                $data['default_alamat_tujuan'] .= 'KOTA ' . strtoupper($penempatan['instansi_kota_kab']);
+            }
+            if (empty($data['default_alamat_tujuan'])) {
+                $data['default_alamat_tujuan'] = 'Tempat';
+            }
+        }
+
+        $this->view('admin/surat_pengantar/generate_form', $data);
+    }
+
+    public function generateSuratPengantarPdf($penempatan_id) {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+            $_SESSION['error_message'] = 'Metode permintaan tidak valid.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $nomor_surat = trim($_POST['nomor_surat']);
+        $tanggal_surat_input = trim($_POST['tanggal_surat']);
+        $kepada_yth_nama = trim($_POST['kepada_yth_nama']);
+        $alamat_tujuan = trim($_POST['alamat_tujuan']);
+
+        if (empty($nomor_surat) || empty($tanggal_surat_input) || empty($kepada_yth_nama)) {
+            $_SESSION['error_message'] = 'Nomor Surat, Tanggal Surat, dan Kepada Yth harus diisi.';
+            header('Location: ' . BASE_URL . '/admin/showGenerateSuratForm/' . $penempatan_id);
+            exit();
+        }
+
+        // --- SIMPAN DETAIL SURAT KE DATABASE ---
+        $this->penempatanKpModel->saveSuratDetails($penempatan_id, $nomor_surat, $kepada_yth_nama, $alamat_tujuan);
+        // --- AKHIR SIMPAN DETAIL SURAT ---
+
+        $penempatan = $this->penempatanKpModel->getPenempatanKpById($penempatan_id); // Ambil ulang data setelah disimpan
+        $mahasiswa_list_raw = $this->penempatanKpModel->getMahasiswaByPenempatanId($penempatan_id);
+
+        if (!$penempatan || empty($mahasiswa_list_raw)) {
+            $_SESSION['error_message'] = 'Data penempatan atau mahasiswa tidak ditemukan untuk generate surat.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $mahasiswa_list = [];
+        $no = 1;
+        foreach($mahasiswa_list_raw as $mhs) {
+            $mahasiswa_list[] = [
+                'no' => $no++,
+                'nim' => $mhs['nim'],
+                'nama' => $mhs['nama_lengkap'],
+                'prodi' => $mhs['program_studi']
+            ];
+        }
+
+        $tanggal_obj = new DateTime($tanggal_surat_input);
+        if (class_exists('IntlDateFormatter')) {
+            $formatter = new IntlDateFormatter(
+                'id_ID',
+                IntlDateFormatter::FULL,
+                IntlDateFormatter::FULL,
+                'Asia/Makassar',
+                IntlDateFormatter::LONG
+            );
+            $formatter->setPattern('d MMMMVIDENCE');
+            $tanggal_surat_formatted = $formatter->format($tanggal_obj);
+        } else {
+            $bulan = [
+                1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ];
+            $tanggal_surat_formatted = $tanggal_obj->format('d') . ' ' . $bulan[(int)$tanggal_obj->format('m')] . ' ' . $tanggal_obj->format('Y');
+        }
+
+        $data_template = [
+            'nomor_surat' => $nomor_surat,
+            'tanggal_surat' => $tanggal_surat_formatted,
+            'kepada_yth' => $kepada_yth_nama,
+            'alamat_tujuan' => $alamat_tujuan,
+            'mahasiswa_list' => $mahasiswa_list,
+            'kaprodi_nama' => 'Ir. ERY MUCHYAR HASIRI, S.Kom, M.T.',
+            'kaprodi_nidn' => '0913098203',
+            'instansi_nama_tujuan' => $penempatan['nama_instansi'],
+            'tanggal_mulai_kp' => $penempatan['tanggal_mulai'],
+            'tanggal_selesai_kp' => $penempatan['tanggal_selesai'],
+        ];
+
+        ob_start();
+        $this->view('surat_pengantar/template', $data_template);
+        $html = ob_get_clean();
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('defaultFont', 'Times New Roman');
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = "Surat Pengantar KP - " . str_replace(' ', '_', $penempatan['nama_instansi']) . ".pdf";
+        $dompdf->stream($filename, ["Attachment" => false]);
+
+        exit();
+    }
+
+    //------------penarikan------------
+    // --- Generate Surat Penarikan KP ---
+    public function showGenerateSuratPenarikanForm($penempatan_id) {
+        $penempatan = $this->penempatanKpModel->getPenempatanKpById($penempatan_id);
+
+        if (!$penempatan) {
+            $_SESSION['error_message'] = 'Penempatan KP tidak ditemukan.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $data['active_menu'] = 'penempatan';
+        $data['title'] = 'Generate Surat Penarikan - SIMONKAPE';
+        $data['penempatan_id'] = $penempatan_id;
+        $data['penempatan'] = $penempatan; // Detail penempatan
+
+        // Default values for form: ambil dari DB jika sudah ada, kalau tidak pakai default
+        $data['default_nomor_surat'] = $penempatan['nomor_surat_penarikan_kp'] ?? '152.I/Q.12/TI-UND/V/'.date('Y', time());
+        $data['default_kepada_yth_nama'] = $penempatan['kepada_yth_penarikan_kp'] ?? ('KEPALA ' . strtoupper($penempatan['nama_instansi'] ?? 'INSTANSI TERKAIT'));
+        $data['default_alamat_tujuan'] = $penempatan['alamat_tujuan_penarikan_kp'] ?? '';
+        $data['default_tanggal_penarikan'] = $penempatan['tanggal_penarikan_kp'] ?? date('Y-m-d'); // Tanggal surat penarikan
+
+        // Jika alamat_tujuan dari DB kosong, coba generate dari instansi
+        if (empty($data['default_alamat_tujuan'])) {
+            if (!empty($penempatan['instansi_alamat'])) {
+                $data['default_alamat_tujuan'] .= $penempatan['instansi_alamat'];
+            }
+            if (!empty($penempatan['instansi_kota_kab'])) {
+                if (!empty($data['default_alamat_tujuan'])) {
+                    $data['default_alamat_tujuan'] .= ', ';
+                }
+                $data['default_alamat_tujuan'] .= 'KOTA ' . strtoupper($penempatan['instansi_kota_kab']);
+            }
+            if (empty($data['default_alamat_tujuan'])) {
+                $data['default_alamat_tujuan'] = 'Tempat';
+            }
+        }
+
+        // Tanggal balasan surat tidak lagi diminta di template
+        // $data['default_tanggal_balasan'] = $penempatan['tanggal_surat_balasan_kp'] ?? $penempatan['tanggal_mulai'];
+
+        $this->view('admin/surat_penarikan/generate_form', $data);
+    }
+
+    public function generateSuratPenarikanPdf($penempatan_id) {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+            $_SESSION['error_message'] = 'Metode permintaan tidak valid.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $nomor_surat = trim($_POST['nomor_surat']);
+        $tanggal_surat_input = trim($_POST['tanggal_surat']); // Ini adalah tanggal surat penarikan
+        $kepada_yth_nama = trim($_POST['kepada_yth_nama']);
+        $alamat_tujuan = trim($_POST['alamat_tujuan']);
+        // Tanggal balasan surat dihapus dari input form
+        // $tanggal_surat_balasan_input = trim($_POST['tanggal_surat_balasan']);
+
+        if (empty($nomor_surat) || empty($tanggal_surat_input) || empty($kepada_yth_nama)) {
+            $_SESSION['error_message'] = 'Nomor Surat, Tanggal Surat, dan Kepada Yth harus diisi.';
+            header('Location: ' . BASE_URL . '/admin/showGenerateSuratPenarikanForm/' . $penempatan_id);
+            exit();
+        }
+
+        // --- SIMPAN DETAIL SURAT PENARIKAN KE DATABASE ---
+        // Tanggal penarikan (tanggal_surat_input) akan disimpan
+        $this->penempatanKpModel->savePenarikanDetails(
+            $penempatan_id,
+            $nomor_surat,
+            $kepada_yth_nama,
+            $alamat_tujuan,
+            $tanggal_surat_input // Tanggal surat penarikan disimpan
+            // tanggal_surat_balasan_input tidak disimpan
+        );
+        // --- AKHIR SIMPAN DETAIL SURAT PENARIKAN ---
+
+        $penempatan = $this->penempatanKpModel->getPenempatanKpById($penempatan_id); // Ambil ulang data setelah disimpan
+        $mahasiswa_list_raw = $this->penempatanKpModel->getMahasiswaByPenempatanId($penempatan['id']);
+
+        if (!$penempatan || empty($mahasiswa_list_raw)) {
+            $_SESSION['error_message'] = 'Data penempatan atau mahasiswa tidak ditemukan untuk generate surat penarikan.';
+            header('Location: ' . BASE_URL . '/admin/penempatan');
+            exit();
+        }
+
+        $mahasiswa_list = [];
+        $no = 1;
+        foreach($mahasiswa_list_raw as $mhs) {
+            $mahasiswa_list[] = [
+                'no' => $no++,
+                'nama' => $mhs['nama_lengkap'], // Nama mahasiswa
+                'nim' => $mhs['nim'] // NIM mahasiswa
+            ];
+        }
+
+        $tanggal_obj = new DateTime($tanggal_surat_input);
+        if (class_exists('IntlDateFormatter')) {
+            $formatter = new IntlDateFormatter(
+                'id_ID', IntlDateFormatter::FULL, IntlDateFormatter::FULL, 'Asia/Makassar', IntlDateFormatter::LONG
+            );
+            $formatter->setPattern('d MMMM yyyy');
+            $tanggal_surat_formatted = $formatter->format($tanggal_obj);
+        } else {
+            $bulan = [ 1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember' ];
+            $tanggal_surat_formatted = $tanggal_obj->format('d') . ' ' . $bulan[(int)$tanggal_obj->format('m')] . ' ' . $tanggal_obj->format('Y');
+        }
+
+        // Format tanggal mulai dan selesai KP untuk teks di surat
+        $tanggal_mulai_kp_formatted = (new DateTime($penempatan['tanggal_mulai']))->format('d MMMM yyyy');
+        $tanggal_selesai_kp_formatted = (new DateTime($penempatan['tanggal_selesai']))->format('d MMMM yyyy');
+
+        $data_template = [
+            'nomor_surat' => $nomor_surat,
+            'tanggal_surat' => $tanggal_surat_formatted,
+            'kepada_yth' => $kepada_yth_nama,
+            'alamat_tujuan' => $alamat_tujuan,
+            'mahasiswa_list' => $mahasiswa_list,
+            'kaprodi_nama' => 'Ir. ERY MUCHYAR HASIRI, S.Kom, M.T.',
+            'kaprodi_nidn' => '0913098203',
+            'instansi_nama' => $penempatan['nama_instansi'], // Nama instansi
+            'tanggal_mulai_kp' => $tanggal_mulai_kp_formatted,
+            'tanggal_selesai_kp' => $tanggal_selesai_kp_formatted,
+            'tanggal_surat_balasan' => 'Disesuaikan dengan surat balasan' // Ini menjadi teks default saja
+        ];
+
+        ob_start();
+        $this->view('surat_penarikan/template', $data_template); // Memanggil template surat_penarikan
+        $html = ob_get_clean();
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('defaultFont', 'Times New Roman');
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = "Surat Penarikan KP - " . str_replace(' ', '_', $penempatan['nama_instansi']) . ".pdf";
+        $dompdf->stream($filename, ["Attachment" => false]);
+
+        exit();
+    }
+
     // --- Laporan & Rekapitulasi ---
     public function laporan() {
         // Implementasi logika untuk laporan
@@ -552,6 +1145,140 @@ class AdminController extends Controller {
         $this->view('admin/laporan/index', $data);
     }
 
+    // --- Manajemen Kaprodi ---
+    public function kaprodi() {
+        $data['active_menu'] = 'kaprodi';
+        $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+        $this->view('admin/kaprodi/index', $data);
+    }
+
+    public function tambahKaprodi() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $data = [
+                'nama_lengkap' => trim($_POST['nama_lengkap']),
+                'nidn' => trim($_POST['nidn']),
+                'email' => trim($_POST['email']),
+                'nomor_telepon' => trim($_POST['nomor_telepon']),
+                'program_studi' => trim($_POST['program_studi']),
+                'error' => ''
+            ];
+
+            if (empty($data['nama_lengkap']) || empty($data['nidn']) || empty($data['email'])) {
+                $data['error'] = 'Nama Lengkap, NIDN, dan Email tidak boleh kosong.';
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi(); // Load ulang data untuk view
+                $this->view('admin/kaprodi/index', $data);
+                return;
+            }
+
+            if ($this->kaprodiModel->getKaprodiByNidn($data['nidn'])) {
+                $data['error'] = 'NIDN sudah terdaftar untuk Kaprodi lain.';
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', $data);
+                return;
+            }
+            if ($this->kaprodiModel->getKaprodiByEmail($data['email'])) {
+                $data['error'] = 'Email sudah terdaftar untuk Kaprodi lain.';
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', $data);
+                return;
+            }
+
+            if ($this->kaprodiModel->addKaprodi($data)) {
+                // Buat akun user otomatis
+                $hashed_password = password_hash(DEFAULT_USER_PASSWORD, PASSWORD_BCRYPT);
+                $kaprodi_baru = $this->kaprodiModel->getKaprodiByNidn($data['nidn']);
+                if ($kaprodi_baru) {
+                    $this->userModel->addUser($data['nidn'], $hashed_password, 'kaprodi', $kaprodi_baru['id']);
+                }
+                header('Location: ' . BASE_URL . '/admin/kaprodi');
+                exit();
+            } else {
+                $data['error'] = 'Gagal menambahkan Kaprodi.';
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', $data);
+            }
+        } else {
+            header('Location: ' . BASE_URL . '/admin/kaprodi');
+            exit();
+        }
+    }
+
+    public function editKaprodi($id) {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $data = [
+                'id' => $id,
+                'nama_lengkap' => trim($_POST['nama_lengkap']),
+                'nidn' => trim($_POST['nidn']),
+                'email' => trim($_POST['email']),
+                'nomor_telepon' => trim($_POST['nomor_telepon']),
+                'program_studi' => trim($_POST['program_studi']),
+                'error' => ''
+            ];
+
+            if (empty($data['nama_lengkap']) || empty($data['nidn']) || empty($data['email'])) {
+                $data['error'] = 'Nama Lengkap, NIDN, dan Email tidak boleh kosong.';
+                $data['kaprodi_edit'] = $this->kaprodiModel->getKaprodiById($id);
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', array_merge($data, ['kaprodi_list' => $this->kaprodiModel->getAllKaprodi()]));
+                return;
+            }
+
+            $existingKaprodiNidn = $this->kaprodiModel->getKaprodiByNidn($data['nidn']);
+            if ($existingKaprodiNidn && $existingKaprodiNidn['id'] != $id) {
+                $data['error'] = 'NIDN sudah terdaftar untuk Kaprodi lain.';
+                $data['kaprodi_edit'] = $this->kaprodiModel->getKaprodiById($id);
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', array_merge($data, ['kaprodi_list' => $this->kaprodiModel->getAllKaprodi()]));
+                return;
+            }
+            $existingKaprodiEmail = $this->kaprodiModel->getKaprodiByEmail($data['email']);
+            if ($existingKaprodiEmail && $existingKaprodiEmail['id'] != $id) {
+                $data['error'] = 'Email sudah terdaftar untuk Kaprodi lain.';
+                $data['kaprodi_edit'] = $this->kaprodiModel->getKaprodiById($id);
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', array_merge($data, ['kaprodi_list' => $this->kaprodiModel->getAllKaprodi()]));
+                return;
+            }
+
+            if ($this->kaprodiModel->updateKaprodi($data)) {
+                $current_user = $this->userModel->getUserByUserIdAndRole($id, 'kaprodi');
+                if ($current_user && $current_user['username'] != $data['nidn']) {
+                    $this->userModel->updateUsername($current_user['id'], $data['nidn']);
+                }
+                header('Location: ' . BASE_URL . '/admin/kaprodi');
+                exit();
+            } else {
+                $data['error'] = 'Gagal memperbarui Kaprodi.';
+                $data['kaprodi_edit'] = $this->kaprodiModel->getKaprodiById($id);
+                $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+                $this->view('admin/kaprodi/index', array_merge($data, ['kaprodi_list' => $this->kaprodiModel->getAllKaprodi()]));
+            }
+        } else {
+            $data['kaprodi_edit'] = $this->kaprodiModel->getKaprodiById($id);
+            if (!$data['kaprodi_edit']) {
+                header('Location: ' . BASE_URL . '/admin/kaprodi');
+                exit();
+            }
+            $data['kaprodi_list'] = $this->kaprodiModel->getAllKaprodi();
+            $this->view('admin/kaprodi/index', $data);
+        }
+    }
+
+    public function hapusKaprodi($id) {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            if ($this->kaprodiModel->deleteKaprodi($id)) {
+                $this->userModel->deleteUserByActorIdAndRole($id, 'kaprodi'); // Menggunakan actor_id
+                header('Location: ' . BASE_URL . '/admin/kaprodi');
+                exit();
+            } else {
+                header('Location: ' . BASE_URL . '/admin/kaprodi');
+                exit();
+            }
+        }
+        header('Location: ' . BASE_URL . '/admin/kaprodi');
+        exit();
+    }
+    
     public function cetakLaporan($type) {
         // Logika untuk mencetak laporan berdasarkan tipe
         // Akan memerlukan library PDF seperti FPDF atau TCPDF jika ingin generate PDF

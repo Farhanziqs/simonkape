@@ -26,10 +26,9 @@ class Instansi {
     }
 
     public function addInstansi($data) {
-        $this->db->query('INSERT INTO instansi (nama_instansi, bidang_kerja, alamat, kota_kab, telepon, email, pic)
-                          VALUES (:nama_instansi, :bidang_kerja, :alamat, :kota_kab, :telepon, :email, :pic)');
+        $this->db->query('INSERT INTO instansi (nama_instansi, alamat, kota_kab, telepon, email, pic)
+                          VALUES (:nama_instansi, :alamat, :kota_kab, :telepon, :email, :pic)');
         $this->db->bind(':nama_instansi', $data['nama_instansi']);
-        $this->db->bind(':bidang_kerja', $data['bidang_kerja']);
         $this->db->bind(':alamat', $data['alamat']);
         $this->db->bind(':kota_kab', $data['kota_kab']);
         $this->db->bind(':telepon', $data['telepon']);
@@ -40,12 +39,11 @@ class Instansi {
     }
 
     public function updateInstansi($data) {
-        $this->db->query('UPDATE instansi SET nama_instansi = :nama_instansi, bidang_kerja = :bidang_kerja,
+        $this->db->query('UPDATE instansi SET nama_instansi = :nama_instansi,
                           alamat = :alamat, kota_kab = :kota_kab, telepon = :telepon, email = :email, pic = :pic
                           WHERE id = :id');
         $this->db->bind(':id', $data['id']);
         $this->db->bind(':nama_instansi', $data['nama_instansi']);
-        $this->db->bind(':bidang_kerja', $data['bidang_kerja']);
         $this->db->bind(':alamat', $data['alamat']);
         $this->db->bind(':kota_kab', $data['kota_kab']);
         $this->db->bind(':telepon', $data['telepon']);

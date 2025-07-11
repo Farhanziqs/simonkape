@@ -18,7 +18,7 @@ class Mahasiswa {
     }
 
     public function getMahasiswaById($id) {
-        $this->db->query('SELECT m.*, i.nama_instansi, d.nama_lengkap as nama_dosen
+        $this->db->query('SELECT m.*, i.nama_instansi, d.nama_lengkap as nama_dosen, d.nidn
                           FROM mahasiswa m
                           LEFT JOIN instansi i ON m.instansi_id = i.id
                           LEFT JOIN dosen d ON m.dosen_pembimbing_id = d.id
@@ -113,5 +113,18 @@ class Mahasiswa {
     public function getMahasiswaPerStatusKp() {
         $this->db->query('SELECT status_kp, COUNT(*) as total FROM mahasiswa GROUP BY status_kp');
         return $this->db->resultSet();
+    }
+    // START - New function for Dosen role
+    public function getMahasiswaByDosenId($dosen_id) {
+        $this->db->query('SELECT * FROM mahasiswa WHERE dosen_pembimbing_id = :dosen_id ORDER BY nama_lengkap ASC');
+        $this->db->bind(':dosen_id', $dosen_id);
+        return $this->db->resultSet();
+    }
+
+    public function getMahasiswaCountByDosenId($dosen_id) {
+        $this->db->query('SELECT COUNT(*) as total FROM mahasiswa WHERE dosen_pembimbing_id = :dosen_id');
+        $this->db->bind(':dosen_id', $dosen_id);
+        $result = $this->db->single();
+        return $result['total'];
     }
 }

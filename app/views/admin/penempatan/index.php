@@ -7,8 +7,11 @@
     </div>
 
     <div class="container">
-        <?php if (isset($data['error'])) : ?>
-            <div class="alert alert-danger"><?php echo $data['error']; ?></div>
+        <?php if (isset($_SESSION['error_message'])) : ?>
+            <div class="alert alert-danger"><?php echo $_SESSION['error_message']; unset($_SESSION['error_message']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['success_message'])) : ?>
+            <div class="alert alert-success"><?php echo $_SESSION['success_message']; unset($_SESSION['success_message']); ?></div>
         <?php endif; ?>
 
         <button class="btn btn-primary" onclick="showForm('addForm')">Tambah Penempatan KP Baru</button>
@@ -39,10 +42,6 @@
                     </select>
                 </div>
                  <div class="form-group">
-                    <label for="nama_kelompok">Nama Kelompok (Opsional)</label>
-                    <input type="text" id="nama_kelompok" name="nama_kelompok" value="<?php echo htmlspecialchars($data['nama_kelompok'] ?? ''); ?>">
-                </div>
-                 <div class="form-group">
                     <label for="tanggal_mulai">Tanggal Mulai KP</label>
                     <input type="date" id="tanggal_mulai" name="tanggal_mulai" value="<?php echo htmlspecialchars($data['tanggal_mulai'] ?? ''); ?>">
                 </div>
@@ -50,16 +49,30 @@
                     <label for="tanggal_selesai">Tanggal Selesai KP</label>
                     <input type="date" id="tanggal_selesai" name="tanggal_selesai" value="<?php echo htmlspecialchars($data['tanggal_selesai'] ?? ''); ?>">
                 </div>
+
                 <div class="form-group">
-                    <label>Pilih Mahasiswa (Tekan Ctrl/Command untuk memilih beberapa)</label>
-                    <select name="mahasiswa_ids[]" multiple size="5" class="multiselect-box">
-                        <?php foreach ($data['mahasiswa_belum_ditempatkan'] as $mhs) : ?>
-                            <option value="<?php echo $mhs['id']; ?>" <?php echo (isset($data['mahasiswa_ids']) && in_array($mhs['id'], $data['mahasiswa_ids'])) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($mhs['nim'] . ' - ' . $mhs['nama_lengkap']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <small>Mahasiswa yang dipilih akan otomatis ditetapkan Dosen Pembimbing dan Instansi KP ini, serta status KP-nya menjadi "Sedang KP".</small>
+                    <label>Pilih Mahasiswa</label>
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 4px;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 5%;"><input type="checkbox" id="select-all-add"></th>
+                                    <th style="width: 30%;">NIM</th>
+                                    <th>Nama Lengkap</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($data['mahasiswa_belum_ditempatkan'] as $mhs) : ?>
+                                    <tr>
+                                        <td><input type="checkbox" class="mhs-checkbox-add" name="mahasiswa_ids[]" value="<?php echo $mhs['id']; ?>"></td>
+                                        <td><?php echo htmlspecialchars($mhs['nim']); ?></td>
+                                        <td><?php echo htmlspecialchars($mhs['nama_lengkap']); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <small>Mahasiswa yang dipilih akan otomatis ditetapkan Dosen Pembimbing dan Instansi KP ini.</small>
                 </div>
                 <button type="submit" class="btn btn-success">Simpan Data</button>
                 <button type="button" class="btn btn-secondary" onclick="hideForm('addForm')">Batal</button>
@@ -73,7 +86,6 @@
                 <div class="form-group">
                     <label for="edit_instansi_id">Instansi KP</label>
                     <select id="edit_instansi_id" name="instansi_id" required>
-                        <option value="">Pilih Instansi</option>
                         <?php foreach ($data['instansi_list'] as $instansi) : ?>
                             <option value="<?php echo $instansi['id']; ?>" <?php echo ($data['penempatan_edit']['instansi_id'] == $instansi['id']) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($instansi['nama_instansi']); ?>
@@ -84,17 +96,12 @@
                 <div class="form-group">
                     <label for="edit_dosen_pembimbing_id">Dosen Pembimbing</label>
                     <select id="edit_dosen_pembimbing_id" name="dosen_pembimbing_id" required>
-                        <option value="">Pilih Dosen</option>
                         <?php foreach ($data['dosen_list'] as $dosen) : ?>
                             <option value="<?php echo $dosen['id']; ?>" <?php echo ($data['penempatan_edit']['dosen_pembimbing_id'] == $dosen['id']) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($dosen['nama_lengkap']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-                 <div class="form-group">
-                    <label for="edit_nama_kelompok">Nama Kelompok (Opsional)</label>
-                    <input type="text" id="edit_nama_kelompok" name="nama_kelompok" value="<?php echo htmlspecialchars($data['penempatan_edit']['nama_kelompok'] ?? ''); ?>">
                 </div>
                  <div class="form-group">
                     <label for="edit_tanggal_mulai">Tanggal Mulai KP</label>
@@ -104,35 +111,53 @@
                     <label for="edit_tanggal_selesai">Tanggal Selesai KP</label>
                     <input type="date" id="edit_tanggal_selesai" name="tanggal_selesai" value="<?php echo htmlspecialchars($data['penempatan_edit']['tanggal_selesai'] ?? ''); ?>">
                 </div>
-                 <div class="form-group">
-                    <label>Pilih Mahasiswa (Tekan Ctrl/Command untuk memilih beberapa)</label>
-                    <select name="mahasiswa_ids[]" multiple size="5" class="multiselect-box">
+
+                <div class="form-group">
+                    <label>Pilih Mahasiswa</label>
+                    <div class="mahasiswa-checkbox-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
                         <?php
-                        $selected_mahasiswa_ids = array_column($data['mahasiswa_saat_ini'], 'id');
-                        $all_available_mahasiswa = array_merge($data['mahasiswa_belum_ditempatkan'], $data['mahasiswa_saat_ini']);
-                        // Pastikan tidak ada duplikat dalam daftar options
-                        $unique_mahasiswa = [];
-                        foreach ($all_available_mahasiswa as $mhs) {
-                            $unique_mahasiswa[$mhs['id']] = $mhs;
+                        $all_available_mahasiswa = $data['mahasiswa_belum_ditempatkan'];
+                        $current_mahasiswa_ids = array_column($data['mahasiswa_saat_ini'], 'id');
+
+                        // Gabungkan mahasiswa yang belum ditempatkan dengan mahasiswa yang sudah ada di kelompok ini
+                        $display_mahasiswa_list = [];
+                        $displayed_ids = [];
+
+                        foreach($all_available_mahasiswa as $mhs) {
+                            $display_mahasiswa_list[$mhs['id']] = $mhs;
+                            $displayed_ids[] = $mhs['id'];
                         }
-                        usort($unique_mahasiswa, function($a, $b) {
-                            return strcmp($a['nama_lengkap'], $b['nama_lengkap']);
+
+                        foreach($data['mahasiswa_saat_ini'] as $mhs) {
+                            if (!in_array($mhs['id'], $displayed_ids)) {
+                                $display_mahasiswa_list[$mhs['id']] = $mhs;
+                            }
+                        }
+
+                        // Urutkan berdasarkan nama atau NIM
+                        usort($display_mahasiswa_list, function($a, $b) {
+                            return strcmp($a['nim'], $b['nim']);
                         });
 
-                        foreach ($unique_mahasiswa as $mhs) : ?>
-                            <option value="<?php echo $mhs['id']; ?>" <?php echo in_array($mhs['id'], $selected_mahasiswa_ids) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($mhs['nim'] . ' - ' . $mhs['nama_lengkap']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <small>Mahasiswa yang dipilih akan otomatis ditetapkan Dosen Pembimbing dan Instansi KP ini, serta status KP-nya menjadi "Sedang KP".</small>
+                        if (!empty($display_mahasiswa_list)) : ?>
+                            <?php foreach ($display_mahasiswa_list as $mhs) : ?>
+                                <label>
+                                    <input type="checkbox" name="mahasiswa_ids[]" value="<?php echo $mhs['id']; ?>"
+                                        <?php echo in_array($mhs['id'], $current_mahasiswa_ids) ? 'checked' : ''; ?>>
+                                    <?php echo htmlspecialchars($mhs['nim']); ?> - <?php echo htmlspecialchars($mhs['nama_lengkap']); ?>
+                                </label><br>
+                            <?php endforeach; ?>
+                        <?php else : ?>
+                            <p>Tidak ada mahasiswa yang tersedia.</p>
+                        <?php endif; ?>
+                    </div>
+                    <small>Mahasiswa yang dipilih akan otomatis ditetapkan Dosen Pembimbing dan Instansi KP ini.</small>
                 </div>
                 <button type="submit" class="btn btn-success">Simpan Perubahan</button>
-                <button type="button" class="btn btn-secondary" onclick="hideForm('editForm')">Batal</button>
+                <a href="<?php echo BASE_URL; ?>/admin/penempatan" class="btn btn-secondary">Batal</a>
             </form>
             <?php endif; ?>
         </div>
-
 
         <div class="table-container">
             <h3>Data Penempatan KP</h3>
@@ -141,42 +166,65 @@
                     <tr>
                         <th>Instansi</th>
                         <th>Dosen Pembimbing</th>
-                        <th>Nama Kelompok</th>
+                        <th>NIM</th>
+                        <th>Nama Mahasiswa</th>
                         <th>Tanggal Mulai</th>
                         <th>Tanggal Selesai</th>
-                        <th>Mahasiswa</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (!empty($data['penempatan_kp'])) : ?>
-                        <?php foreach ($data['penempatan_kp'] as $pkp) : ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($pkp['nama_instansi']); ?></td>
-                                <td><?php echo htmlspecialchars($pkp['nama_dosen']); ?></td>
-                                <td><?php echo htmlspecialchars($pkp['nama_kelompok'] ?? '-'); ?></td>
-                                <td><?php echo htmlspecialchars($pkp['tanggal_mulai'] ?? '-'); ?></td>
-                                <td><?php echo htmlspecialchars($pkp['tanggal_selesai'] ?? '-'); ?></td>
-                                <td>
-                                    <?php
-                                        if (!empty($pkp['mahasiswa_list'])) {
-                                            $nama_mahasiswa = array_column($pkp['mahasiswa_list'], 'nama_lengkap');
-                                            echo implode(', ', $nama_mahasiswa);
-                                        } else {
-                                            echo '-';
-                                        }
-                                    ?>
-                                </td>
-                                <td>
-                                    <button class="btn btn-warning btn-sm" onclick="editPenempatan(<?php echo $pkp['id']; ?>,'<?php echo htmlspecialchars($pkp['instansi_id'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['dosen_pembimbing_id'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['nama_kelompok'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['tanggal_mulai'], ENT_QUOTES); ?>','<?php echo htmlspecialchars($pkp['tanggal_selesai'], ENT_QUOTES); ?>',<?php echo json_encode(array_column($pkp['mahasiswa_list'] ?? [], 'id')); ?>)">Edit</button>
-                                    <form action="<?php echo BASE_URL; ?>/admin/hapusPenempatan/<?php echo $pkp['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus penempatan KP ini? Mahasiswa yang terkait akan diatur ulang status KP-nya.');">
-                                        <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
-                                    </form>
-                                </td>
-                            </tr>
+                    <?php if (!empty($data['processed_penempatan_details'])) : ?>
+                        <?php
+                        // Variabel untuk melacak apakah sel Instansi dan Dosen sudah dicetak
+                        $instansi_printed = [];
+                        $dosen_printed = [];
+                        ?>
+                        <?php foreach ($data['processed_penempatan_details'] as $inst_group) : ?>
+                            <?php
+                            $instansi_rowspan_set_for_group = false; // Flag untuk Instansi di level group Instansi
+                            ?>
+                            <?php foreach ($inst_group['dosen_groups'] as $dosen_group) : ?>
+                                <?php
+                                $dosen_rowspan_set_for_group = false; // Flag untuk Dosen di level group Dosen
+                                ?>
+                                <?php foreach ($dosen_group['students'] as $index => $detail) : ?>
+                                    <tr>
+                                        <?php if (!$instansi_rowspan_set_for_group) : ?>
+                                            <td rowspan="<?php echo $inst_group['instansi_rowspan']; ?>">
+                                                <?php echo htmlspecialchars($inst_group['nama_instansi']); ?>
+                                            </td>
+                                            <?php $instansi_rowspan_set_for_group = true; ?>
+                                        <?php endif; ?>
+
+                                        <?php if (!$dosen_rowspan_set_for_group) : ?>
+                                            <td rowspan="<?php echo $dosen_group['dosen_rowspan']; ?>">
+                                                <?php echo htmlspecialchars($dosen_group['nama_dosen_pembimbing']); ?>
+                                            </td>
+                                            <?php $dosen_rowspan_set_for_group = true; ?>
+                                        <?php endif; ?>
+
+                                        <td><?php echo htmlspecialchars($detail['nim']); ?></td>
+                                        <td><?php echo htmlspecialchars($detail['nama_mahasiswa']); ?></td>
+                                        <td><?php echo htmlspecialchars($detail['tanggal_mulai']); ?></td>
+                                        <td><?php echo htmlspecialchars($detail['tanggal_selesai']); ?></td>
+
+                                        <?php if ($index === 0) : // Aksi hanya ditampilkan di baris pertama setiap kelompok dosen ?>
+                                            <td rowspan="<?php echo $dosen_group['dosen_rowspan']; ?>">
+                                                <a href="<?php echo BASE_URL; ?>/admin/showGenerateSuratForm/<?php echo $detail['penempatan_id']; ?>" class="btn btn-primary btn-sm">Surat Pengantar</a>
+                                                <a href="<?php echo BASE_URL; ?>/admin/showGenerateSuratPenarikanForm/<?php echo $detail['penempatan_id']; ?>" class="btn btn-success btn-sm">Surat Penarikan</a>
+                                                <a href="<?php echo BASE_URL; ?>/admin/editPenempatan/<?php echo $detail['penempatan_id']; ?>" class="btn btn-warning btn-sm">Edit</a>
+                                                <form action="<?php echo BASE_URL; ?>/admin/hapusPenempatan/<?php echo $detail['penempatan_id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus penempatan kelompok ini? Ini akan menghapus semua mahasiswa dalam kelompok ini dari penempatan.');">
+                                                    <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+                                                </form>
+                                            </td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
                         <?php endforeach; ?>
                     <?php else : ?>
-                        <tr><td colspan="7">Tidak ada data penempatan KP.</td></tr>
+                        <tr><td colspan="7">Tidak ada data penempatan mahasiswa yang ditemukan.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -186,8 +234,10 @@
 
 <script>
     function showForm(formId) {
+        // Sembunyikan semua form dulu
         document.getElementById('addForm').style.display = 'none';
         document.getElementById('editForm').style.display = 'none';
+        // Tampilkan form yang diminta
         document.getElementById(formId).style.display = 'block';
     }
 
@@ -195,32 +245,35 @@
         document.getElementById(formId).style.display = 'none';
     }
 
-    function editPenempatan(id, instansi_id, dosen_pembimbing_id, nama_kelompok, tanggal_mulai, tanggal_selesai, mahasiswa_ids) {
-        document.getElementById('edit_instansi_id').value = instansi_id;
-        document.getElementById('edit_dosen_pembimbing_id').value = dosen_pembimbing_id;
-        document.getElementById('edit_nama_kelompok').value = nama_kelompok;
-        document.getElementById('edit_tanggal_mulai').value = tanggal_mulai;
-        document.getElementById('edit_tanggal_selesai').value = tanggal_selesai;
-
-        // Set selected options for multi-select
-        const selectMahasiswa = document.querySelector('#editForm select[name="mahasiswa_ids[]"]');
-        for (let i = 0; i < selectMahasiswa.options.length; i++) {
-            selectMahasiswa.options[i].selected = mahasiswa_ids.includes(parseInt(selectMahasiswa.options[i].value));
-        }
-
-        document.querySelector('#editForm form').action = `<?php echo BASE_URL; ?>/admin/editPenempatan/${id}`;
-
-        showForm('editForm');
-    }
-
-    // Tampilkan form edit jika ada data error dari proses edit sebelumnya
+    // Tampilkan form yang sesuai jika ada error atau saat mode edit
     <?php if (isset($data['penempatan_edit'])) : ?>
         showForm('editForm');
+    <?php elseif (isset($data['error']) && empty($data['penempatan_edit'])) : ?>
+        showForm('addForm'); // Jika ada error saat tambah, tampilkan form tambah
     <?php endif; ?>
-     // Tampilkan form add jika ada data error dari proses add sebelumnya
-    <?php if (isset($data['error']) && !isset($data['penempatan_edit'])) : ?>
-        showForm('addForm');
-    <?php endif; ?>
+
+    // --- Fungsionalitas Checklist "Pilih Semua" ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Untuk form "Tambah"
+        const selectAllAdd = document.getElementById('select-all-add');
+        if (selectAllAdd) {
+            selectAllAdd.addEventListener('change', function() {
+                document.querySelectorAll('.mhs-checkbox-add').forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+
+        // Untuk form "Edit"
+        const selectAllEdit = document.getElementById('select-all-edit');
+        if (selectAllEdit) {
+            selectAllEdit.addEventListener('change', function() {
+                document.querySelectorAll('.mhs-checkbox-edit').forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+    });
 </script>
 
 <?php include APP_ROOT . '/app/views/admin/includes/footer.php'; ?>

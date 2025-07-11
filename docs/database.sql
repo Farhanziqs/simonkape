@@ -122,3 +122,5 @@ CREATE TABLE penempatan_kp_mahasiswa (
     CONSTRAINT fk_pkm_penempatan FOREIGN KEY (penempatan_kp_id) REFERENCES penempatan_kp(id) ON DELETE CASCADE,
     CONSTRAINT fk_pkm_mahasiswa FOREIGN KEY (mahasiswa_id) REFERENCES mahasiswa(id) ON DELETE CASCADE
 );
+
+UPDATE logbook_harian SET dokumentasi = REPLACE(dokumentasi, '/public/uploads/', '/uploads/');

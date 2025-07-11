@@ -61,4 +61,13 @@ class User {
         $this->db->bind(':role', $role);
         return $this->db->execute();
     }
+
+    // Method untuk mendapatkan ID user di tabel 'users' berdasarkan user_id dan role
+    public function getUserIdByActorIdAndRole($actor_id, $role) {
+        $this->db->query('SELECT id FROM users WHERE user_id = :actor_id AND role = :role');
+        $this->db->bind(':actor_id', $actor_id);
+        $this->db->bind(':role', $role);
+        $result = $this->db->single();
+        return $result ? $result['id'] : null;
+    }
 }

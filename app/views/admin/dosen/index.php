@@ -10,8 +10,15 @@
         <?php if (isset($data['error'])) : ?>
             <div class="alert alert-danger"><?php echo $data['error']; ?></div>
         <?php endif; ?>
+        <?php if (isset($_SESSION['error_message'])) : ?>
+            <div class="alert alert-danger"><?php echo $_SESSION['error_message']; unset($_SESSION['error_message']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['success_message'])) : ?>
+            <div class="alert alert-success"><?php echo $_SESSION['success_message']; unset($_SESSION['success_message']); ?></div>
+        <?php endif; ?>
 
         <button class="btn btn-primary" onclick="showForm('addForm')">Tambah Dosen Baru</button>
+        <button class="btn btn-info" onclick="showForm('importForm')">Import CSV</button>
 
         <div id="addForm" class="form-container" style="display: none;">
             <h3>Tambah Dosen Baru</h3>
@@ -41,6 +48,19 @@
                 </div>
                 <button type="submit" class="btn btn-success">Simpan Data</button>
                 <button type="button" class="btn btn-secondary" onclick="hideForm('addForm')">Batal</button>
+            </form>
+        </div>
+
+        <div id="importForm" class="form-container" style="display: none;">
+            <h3>Import Data Dosen dari CSV</h3>
+            <form action="<?php echo BASE_URL; ?>/admin/importDosenCsv" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="csv_file">Pilih File CSV</label>
+                    <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+                    <small>Pastikan baris pertama CSV adalah header. Kolom yang akan diambil: `NIDN`, `Nama Lengkap`, `Email`, `Nomor Telepon` (opsional), `Status Aktif` (opsional, default 'Aktif'). Kolom lain di CSV akan diabaikan.</small>
+                </div>
+                <button type="submit" class="btn btn-success">Import Data</button>
+                <button type="button" class="btn btn-secondary" onclick="hideForm('importForm')">Batal</button>
             </form>
         </div>
 
@@ -100,7 +120,8 @@
                                 <td><?php echo htmlspecialchars($dsn['email']); ?></td>
                                 <td><?php echo htmlspecialchars($dsn['nomor_telepon'] ?? ''); ?></td>
                                 <td>
-                                    <button class="btn btn-warning btn-sm" onclick="editDosen(<?php echo $dsn['id']; ?>, '<?php echo htmlspecialchars($dsn['nidn'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nama_lengkap'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nomor_telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['status_aktif'], ENT_QUOTES); ?>')">Edit</button>
+                                    <a href="<?php echo BASE_URL; ?>/admin/editDosen/<?php echo $dsn['id']; ?>" class="btn btn-warning btn-sm">Edit</a>
+                                    <!-- <button class="btn btn-warning btn-sm" onclick="editDosen(<?php echo $dsn['id']; ?>, '<?php echo htmlspecialchars($dsn['nidn'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nama_lengkap'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['nomor_telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($dsn['status_aktif'], ENT_QUOTES); ?>')">Edit</button> -->
                                     <form action="<?php echo BASE_URL; ?>/admin/hapusDosen/<?php echo $dsn['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data dosen ini? Tindakan ini juga akan menghapus akun user terkait.');">
                                         <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                     </form>
@@ -120,6 +141,7 @@
     function showForm(formId) {
         document.getElementById('addForm').style.display = 'none';
         document.getElementById('editForm').style.display = 'none';
+         document.getElementById('importForm').style.display = 'none';
         document.getElementById(formId).style.display = 'block';
     }
 
@@ -141,8 +163,7 @@
 
     <?php if (isset($data['dosen_edit'])) : ?>
         showForm('editForm');
-    <?php endif; ?>
-    <?php if (isset($data['error']) && !isset($data['dosen_edit'])) : ?>
+    <?php elseif (isset($data['error']) && !isset($data['dosen_edit'])) : ?>
         showForm('addForm');
     <?php endif; ?>
 </script>

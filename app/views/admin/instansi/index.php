@@ -10,8 +10,15 @@
         <?php if (isset($data['error'])) : ?>
             <div class="alert alert-danger"><?php echo $data['error']; ?></div>
         <?php endif; ?>
+        <?php if (isset($_SESSION['error_message'])) : ?>
+            <div class="alert alert-danger"><?php echo $_SESSION['error_message']; unset($_SESSION['error_message']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['success_message'])) : ?>
+            <div class="alert alert-success"><?php echo $_SESSION['success_message']; unset($_SESSION['success_message']); ?></div>
+        <?php endif; ?>
 
         <button class="btn btn-primary" onclick="showForm('addForm')">Tambah Instansi Baru</button>
+        <button class="btn btn-info" onclick="showForm('importForm')">Import CSV</button>
 
         <div id="addForm" class="form-container" style="display: none;">
             <h3>Tambah Instansi Baru</h3>
@@ -19,10 +26,6 @@
                 <div class="form-group">
                     <label for="nama_instansi">Nama Instansi</label>
                     <input type="text" id="nama_instansi" name="nama_instansi" required value="<?php echo htmlspecialchars($data['nama_instansi'] ?? ''); ?>">
-                </div>
-                <div class="form-group">
-                    <label for="bidang_kerja">Bidang Kerja</label>
-                    <input type="text" id="bidang_kerja" name="bidang_kerja" value="<?php echo htmlspecialchars($data['bidang_kerja'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label for="alamat">Alamat Lengkap</label>
@@ -49,6 +52,19 @@
             </form>
         </div>
 
+        <div id="importForm" class="form-container" style="display: none;">
+            <h3>Import Data Instansi dari CSV</h3>
+            <form action="<?php echo BASE_URL; ?>/admin/importInstansiCsv" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="csv_file">Pilih File CSV</label>
+                    <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+                    <small>Pastikan baris pertama CSV adalah header. Kolom yang akan diambil: `Nama Instansi`, `Bidang Kerja` (opsional), `Alamat` (opsional), `Kota/Kabupaten` (opsional), `Telepon` (opsional), `Email` (opsional), `PIC` (opsional). Kolom lain di CSV akan diabaikan.</small>
+                </div>
+                <button type="submit" class="btn btn-success">Import Data</button>
+                <button type="button" class="btn btn-secondary" onclick="hideForm('importForm')">Batal</button>
+            </form>
+        </div>
+
         <div id="editForm" class="form-container" style="display: <?php echo isset($data['instansi_edit']) ? 'block' : 'none'; ?>;">
             <h3>Edit Data Instansi</h3>
             <?php if (isset($data['instansi_edit'])) : ?>
@@ -56,10 +72,6 @@
                 <div class="form-group">
                     <label for="edit_nama_instansi">Nama Instansi</label>
                     <input type="text" id="edit_nama_instansi" name="nama_instansi" required value="<?php echo htmlspecialchars($data['instansi_edit']['nama_instansi']); ?>">
-                </div>
-                <div class="form-group">
-                    <label for="edit_bidang_kerja">Bidang Kerja</label>
-                    <input type="text" id="edit_bidang_kerja" name="bidang_kerja" value="<?php echo htmlspecialchars($data['instansi_edit']['bidang_kerja'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label for="edit_alamat">Alamat Lengkap</label>
@@ -82,7 +94,7 @@
                     <input type="text" id="edit_pic" name="pic" value="<?php echo htmlspecialchars($data['instansi_edit']['pic'] ?? ''); ?>">
                 </div>
                 <button type="submit" class="btn btn-success">Simpan Data</button>
-                <button type="button" class="btn btn-secondary" onclick="hideForm('editForm')">Batal</button>
+                <a href="<?php echo BASE_URL; ?>/admin/instansi" class="btn btn-secondary">Batal</a>
             </form>
             <?php endif; ?>
         </div>
@@ -93,7 +105,6 @@
                 <thead>
                     <tr>
                         <th>Nama Instansi</th>
-                        <th>Bidang Kerja</th>
                         <th>Alamat</th>
                         <th>Kota/Kab.</th>
                         <th>Telepon</th>
@@ -107,14 +118,13 @@
                         <?php foreach ($data['instansi'] as $inst) : ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($inst['nama_instansi']); ?></td>
-                                <td><?php echo htmlspecialchars($inst['bidang_kerja']); ?></td>
                                 <td><?php echo htmlspecialchars($inst['alamat']); ?></td>
                                 <td><?php echo htmlspecialchars($inst['kota_kab']); ?></td>
                                 <td><?php echo htmlspecialchars($inst['telepon']); ?></td>
                                 <td><?php echo htmlspecialchars($inst['email']); ?></td>
                                 <td><?php echo htmlspecialchars($inst['pic']); ?></td>
                                 <td>
-                                    <button class="btn btn-warning btn-sm" onclick="editInstansi(<?php echo $inst['id']; ?>, '<?php echo htmlspecialchars($inst['nama_instansi'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['bidang_kerja'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['alamat'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['kota_kab'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['telepon'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['email'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($inst['pic'], ENT_QUOTES); ?>')">Edit</button>
+                                    <a href="<?php echo BASE_URL; ?>/admin/editInstansi/<?php echo $inst['id']; ?>" class="btn btn-warning btn-sm">Edit</a>
                                     <form action="<?php echo BASE_URL; ?>/admin/hapusInstansi/<?php echo $inst['id']; ?>" method="POST" style="display:inline-block;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data instansi ini?');">
                                         <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
                                     </form>
@@ -122,7 +132,7 @@
                             </tr>
                         <?php endforeach; ?>
                     <?php else : ?>
-                        <tr><td colspan="8">Tidak ada data instansi.</td></tr>
+                         <tr><td colspan="6">Tidak ada data instansi.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -134,6 +144,7 @@
     function showForm(formId) {
         document.getElementById('addForm').style.display = 'none';
         document.getElementById('editForm').style.display = 'none';
+        document.getElementById('importForm').style.display = 'none';
         document.getElementById(formId).style.display = 'block';
     }
 
@@ -141,24 +152,10 @@
         document.getElementById(formId).style.display = 'none';
     }
 
-    function editInstansi(id, nama_instansi, bidang_kerja, alamat, kota_kab, telepon, email, pic) {
-        document.getElementById('edit_nama_instansi').value = nama_instansi;
-        document.getElementById('edit_bidang_kerja').value = bidang_kerja;
-        document.getElementById('edit_alamat').value = alamat;
-        document.getElementById('edit_kota_kab').value = kota_kab;
-        document.getElementById('edit_telepon').value = telepon;
-        document.getElementById('edit_email').value = email;
-        document.getElementById('edit_pic').value = pic;
-
-        document.querySelector('#editForm form').action = `<?php echo BASE_URL; ?>/admin/editInstansi/${id}`;
-
-        showForm('editForm');
-    }
-
+    // Tampilkan form yang sesuai jika ada error atau mode edit
     <?php if (isset($data['instansi_edit'])) : ?>
         showForm('editForm');
-    <?php endif; ?>
-    <?php if (isset($data['error']) && !isset($data['instansi_edit'])) : ?>
+    <?php elseif (isset($data['error'])) : ?>
         showForm('addForm');
     <?php endif; ?>
 </script>
